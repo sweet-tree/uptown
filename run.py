@@ -18,7 +18,7 @@ from google.genai import types
 from PIL import Image as PILImage
 
 from cards.sports_data import get_team, PlayerSpec, CardSpec
-from cards.prompt_engine import build_prompt, load_reference
+from cards.prompt_engine import build_prompt, load_references
 from compositor import extract_sticker
 
 load_dotenv()
@@ -63,7 +63,7 @@ def main():
     out_dir = Path("output")
     out_dir.mkdir(exist_ok=True)
 
-    ref = load_reference()
+    card_ref, marquee_ref = load_references()
     prompt = build_prompt(spec)
 
     log.info(f"Team    : {spec.team.name}")
@@ -76,7 +76,11 @@ def main():
 
     response = client.models.generate_content(
         model=MODEL,
-        contents=[prompt, ref],
+        contents=[
+            prompt,
+            card_ref,
+            marquee_ref,
+        ],
         config=types.GenerateContentConfig(
             response_modalities=["TEXT", "IMAGE"],
             image_config=types.ImageConfig(
@@ -97,16 +101,10 @@ def main():
     if raw_img is None:
         raise RuntimeError("No image returned from API")
 
-    # Save raw
+    # Save raw — this IS the final card (black background, marquee included)
     raw_path = out_dir / f"{slug}_raw.jpg"
-    raw_img.save(raw_path, format="JPEG", quality=92)
-    log.info(f"Raw     : {raw_path} ({raw_img.width}x{raw_img.height}px)")
-
-    # Extract isolated sticker
-    sticker = extract_sticker(raw_img)
-    sticker_path = out_dir / f"{slug}_sticker.png"
-    sticker.save(sticker_path, format="PNG")
-    log.info(f"Sticker : {sticker_path}")
+    raw_img.save(raw_path, format="JPEG", quality=95)
+    log.info(f"Card    : {raw_path} ({raw_img.width}x{raw_img.height}px)")
 
 
 if __name__ == "__main__":
