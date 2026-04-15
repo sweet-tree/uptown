@@ -20,7 +20,7 @@ from google.genai import types
 from PIL import Image as PILImage
 
 from cards.sports_data import get_team, PlayerSpec, CardSpec
-from cards.prompt_engine import build_prompt, load_reference
+from cards.prompt_engine import build_prompt, load_references
 from compositor import extract_sticker
 
 load_dotenv()
@@ -34,6 +34,8 @@ log = logging.getLogger(__name__)
 MODEL = "gemini-3-pro-image-preview"
 SIZE = "2K"
 DELAY = 5  # seconds between cards
+
+FOIL = Path("assets/foil_black.png")
 
 # ── Verified batch — NFL.com rosters, April 2026 ─────────────────────────────
 BATCH = [
@@ -102,13 +104,13 @@ def slug(spec: CardSpec) -> str:
     return f"{team}_{p1}_{p2}"
 
 
-def run_card(client, spec: CardSpec, ref, out_dir: Path):
+def run_card(client, spec: CardSpec, marquee_ref, card_ref, foil, out_dir: Path):
     s = slug(spec)
     prompt = build_prompt(spec)
 
     response = client.models.generate_content(
         model=MODEL,
-        contents=[prompt, ref],
+        contents=[prompt, marquee_ref, card_ref],
         config=types.GenerateContentConfig(
             response_modalities=["TEXT", "IMAGE"],
             image_config=types.ImageConfig(
@@ -130,13 +132,20 @@ def run_card(client, spec: CardSpec, ref, out_dir: Path):
         raise RuntimeError("No image returned")
 
     raw_path = out_dir / f"{s}_raw.jpg"
-    raw_img.save(raw_path, format="JPEG", quality=92)
+    raw_img.save(raw_path, format="JPEG", quality=95)
     log.info(f"   Raw     : {raw_path}")
 
     sticker = extract_sticker(raw_img)
     sticker_path = out_dir / f"{s}_sticker.png"
     sticker.save(sticker_path, format="PNG")
     log.info(f"   Sticker : {sticker_path}")
+
+    # Composite over foil background
+    canvas = foil.copy()
+    canvas.paste(sticker, (0, 0), sticker)
+    final_path = out_dir / f"{s}_final.jpg"
+    canvas.convert("RGB").save(final_path, format="JPEG", quality=95)
+    log.info(f"   Final   : {final_path}")
 
 
 def main():
@@ -157,7 +166,8 @@ def main():
                 f"[{i}] {spec.team.name}: {p1.name} #{p1.number} + {p2.name} #{p2.number}")
         return
 
-    ref = load_reference()
+    marquee_ref, card_ref = load_references()
+    foil = PILImage.open(FOIL).convert("RGBA")
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
     succeeded, failed = 0, 0
@@ -166,7 +176,7 @@ def main():
         log.info(
             f"\n[{i}/{len(BATCH)}] {spec.team.name}: {p1.name} + {p2.name}")
         try:
-            run_card(client, spec, ref, out_dir)
+            run_card(client, spec, marquee_ref, card_ref, foil, out_dir)
             succeeded += 1
         except Exception as e:
             log.error(f"   FAILED: {e}")
