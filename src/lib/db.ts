@@ -8,8 +8,29 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+function rosterDelegateMissing(client: PrismaClient | undefined): boolean {
+  if (!client) return true;
+  const d = (client as unknown as { rosterEntry?: { findMany?: unknown } }).rosterEntry;
+  return typeof d?.findMany !== "function";
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+/**
+ * After `prisma generate`, Next dev can keep a stale PrismaClient on `globalThis`
+ * that predates new models — delegates like `rosterEntry` are then undefined.
+ * In development, drop that cache so the next import gets a fresh client.
+ */
+function getPrisma(): PrismaClient {
+  const g = globalForPrisma;
+  if (process.env.NODE_ENV !== "production" && g.prisma && rosterDelegateMissing(g.prisma)) {
+    void g.prisma.$disconnect().catch(() => {});
+    g.prisma = undefined;
+  }
+  if (!g.prisma) {
+    g.prisma = createPrismaClient();
+  }
+  return g.prisma;
+}
+
+export const prisma = getPrisma();

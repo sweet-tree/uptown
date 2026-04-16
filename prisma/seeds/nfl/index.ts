@@ -1,13 +1,17 @@
+import path from "node:path";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { PrismaClient } from "../../src/generated/prisma/client";
-import { BAL } from "./teams/bal";
-import { KC }  from "./teams/kc";
-import { DAL } from "./teams/dal";
-import { GB }  from "./teams/gb";
-import { CHI } from "./teams/chi";
-import { LV }  from "./teams/lv";
 import type { TeamSeed } from "../types";
 
-export const NFL_TEAMS: TeamSeed[] = [BAL, KC, DAL, GB, CHI, LV];
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const nflJsonPath = path.join(__dirname, "nfl-full.generated.json");
+
+type NflSeedFile = { teams: TeamSeed[]; meta: Record<string, unknown> };
+
+const { teams: NFL_TEAMS } = JSON.parse(readFileSync(nflJsonPath, "utf8")) as NflSeedFile;
+
+export { NFL_TEAMS };
 
 export async function seedNFL(prisma: PrismaClient) {
   const sport = await prisma.sport.upsert({
@@ -38,27 +42,32 @@ export async function seedNFL(prisma: PrismaClient) {
       },
     });
 
-    // Re-seed card players (delete + recreate for clean state)
     await prisma.cardPlayer.deleteMany({ where: { teamId: team.id } });
-    await prisma.cardPlayer.createMany({
-      data: t.cardPlayers.map((p) => ({
-        teamId: team.id,
-        name: p.name, number: p.number, position: p.position,
-        side: p.side, pose: p.pose ?? "auto", ball: p.ball ?? "auto",
-        order: p.order ?? 0,
-      })),
-    });
+    if (t.cardPlayers.length) {
+      await prisma.cardPlayer.createMany({
+        data: t.cardPlayers.map((p) => ({
+          teamId: team.id,
+          name: p.name, number: p.number, position: p.position,
+          side: p.side, pose: p.pose ?? "auto", ball: p.ball ?? "auto",
+          order: p.order ?? 0,
+        })),
+      });
+    }
 
     await prisma.rosterEntry.deleteMany({ where: { teamId: team.id } });
     if (t.roster?.length) {
       await prisma.rosterEntry.createMany({
-        data: t.roster.map((r, idx) => ({
-          teamId: team.id,
-          name: r.name,
-          number: r.number,
-          position: r.position,
-          sortOrder: Number.parseInt(r.number, 10) * 100 + idx,
-        })),
+        data: t.roster.map((r, idx) => {
+          const n = Number.parseInt(r.number, 10);
+          const base = Number.isFinite(n) ? n : 0;
+          return {
+            teamId: team.id,
+            name: r.name,
+            number: r.number,
+            position: r.position,
+            sortOrder: base * 100 + idx,
+          };
+        }),
       });
     }
 

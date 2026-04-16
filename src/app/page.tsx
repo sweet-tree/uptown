@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { getPrompt, setPrompt, deletePrompt, getGenerations } from "@/app/actions/prompts";
 import { getTeams } from "@/app/actions/teams";
 import type { TeamWithPlayers } from "@/lib/types";
+import { PromptInspector } from "@/components/prompt-inspector";
 
-type Tab = "player" | "background" | "prompt";
+type Tab = "player" | "background";
 type Side = "left" | "right";
 type ModelTier = "flash" | "pro";
 type Status = "idle" | "loading" | "done" | "error";
@@ -36,9 +37,14 @@ export default function Dashboard() {
   const [ballOverride, setBallOverride]      = useState<"auto" | "yes" | "no">("auto");
 
   const [promptDraft, setPromptDraft]        = useState("");
+  const [promptInspectorOpen, setPromptInspectorOpen] = useState(false);
 
-  // ── Load teams from DB ────────────────────────────────────────────────────────
-  const { data: teams = [] } = useQuery<TeamWithPlayers[]>({
+  const {
+    data: teams = [],
+    isError: teamsError,
+    error: teamsQueryError,
+    isPending: teamsLoading,
+  } = useQuery<TeamWithPlayers[]>({
     queryKey: ["teams", "nfl"],
     queryFn:  () => getTeams("nfl"),
     staleTime: Infinity,
@@ -49,47 +55,17 @@ export default function Dashboard() {
   const leftDefault  = team?.cardPlayers.find((p) => p.side === "left");
   const rightDefault = team?.cardPlayers.find((p) => p.side === "right");
 
-  // Derive current prompt key
   const promptKey =
     tab === "background"
       ? `background:${selectedAbbr}`
-      : tab === "prompt"
-      ? side === "left"
-        ? `player:${selectedAbbr}:left`
-        : `player:${selectedAbbr}:right`
       : `player:${selectedAbbr}:${side}`;
 
-  // ── TanStack Query: fetch prompt ──────────────────────────────────────────────
   const { data: promptData, isLoading: promptLoading } = useQuery({
     queryKey: ["prompt", promptKey],
     queryFn: () => getPrompt(promptKey),
-    enabled: tab === "prompt",
+    enabled: promptInspectorOpen,
   });
 
-  useEffect(() => {
-    if (promptData) setPromptDraft(promptData.text);
-  }, [promptData]);
-
-  // Reset draft when key changes
-  useEffect(() => {
-    if (tab !== "prompt" || !team) return;
-    const spec = team.cardPlayers.find((p) => p.side === side);
-    const defaultText = promptKey.startsWith("background")
-      ? buildBackgroundPrompt(team)
-      : buildPlayerPrompt(
-          team,
-          spec?.name ?? "Player",
-          spec?.number ?? "0",
-          spec?.position ?? "qb",
-          side,
-          spec?.pose ?? "auto",
-          spec?.ball ?? "auto",
-        );
-    setPromptDraft(defaultText);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAbbr, side, tab]);
-
-  // ── TanStack Mutation: save prompt ────────────────────────────────────────────
   const saveMutation = useMutation({
     mutationFn: (text: string) => setPrompt(promptKey, text),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["prompt", promptKey] }),
@@ -100,7 +76,7 @@ export default function Dashboard() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["prompt", promptKey] });
       if (!team) return;
-      const spec = team.cardPlayers.find((p) => p.side === side);
+      const spec = team?.cardPlayers.find((p) => p.side === side);
       const defaultText = promptKey.startsWith("background")
         ? buildBackgroundPrompt(team)
         : buildPlayerPrompt(
@@ -116,19 +92,57 @@ export default function Dashboard() {
     },
   });
 
-  // ── TanStack Query: generation history ───────────────────────────────────────
+  const closePromptInspector = useCallback(() => {
+    if (promptData && promptDraft !== promptData.text) {
+      if (!window.confirm("Discard changes to this prompt?")) return;
+    }
+    saveMutation.reset();
+    resetMutation.reset();
+    setPromptInspectorOpen(false);
+  }, [promptData, promptDraft, saveMutation, resetMutation]);
+
+  useEffect(() => {
+    if (!promptInspectorOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closePromptInspector();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [promptInspectorOpen, closePromptInspector]);
+
+  useEffect(() => {
+    if (!promptInspectorOpen || promptLoading) return;
+    if (promptData) setPromptDraft(promptData.text);
+  }, [promptInspectorOpen, promptKey, promptData, promptLoading]);
+
   const { data: history } = useQuery({
     queryKey: ["generations", selectedAbbr],
     queryFn: () => getGenerations(selectedAbbr),
   });
 
-  // ── Generate ──────────────────────────────────────────────────────────────────
+  const resolvedSummary = useMemo(() => {
+    if (!team) return "—";
+    if (tab === "background") {
+      return `Background plate · ${team.name} (${selectedAbbr})`;
+    }
+    const spec = team.cardPlayers.find((p) => p.side === side);
+    const name = playerOverride.trim() || spec?.name || "Player";
+    const num = numberOverride.trim() || spec?.number || "0";
+    const pos = (spec?.position || "qb").toUpperCase();
+    const pose = poseOverride.trim() || spec?.pose || "auto";
+    const ball = ballOverride !== "auto" ? ballOverride : (spec?.ball ?? "auto");
+    return `${name} · #${num} · ${pos} · pose ${pose} · ball ${ball} · ${side} slot · ${selectedAbbr}`;
+  }, [team, tab, side, selectedAbbr, playerOverride, numberOverride, poseOverride, ballOverride]);
+
   async function generate() {
     setStatus("loading");
     setGenError("");
     try {
       let res: Response;
-      if (tab === "background" || (tab === "prompt" && promptKey.startsWith("background"))) {
+      if (tab === "background") {
         res = await fetch("/api/generate/background", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -169,12 +183,23 @@ export default function Dashboard() {
   }
 
   const isGenerating = status === "loading";
-  const canGenerate = tab !== "prompt";
+
+  const editPromptBtnStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--panel)",
+    color: "var(--text)",
+    fontWeight: 600,
+    fontSize: 12,
+    cursor: "pointer",
+    textAlign: "left",
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
 
-      {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
       <aside style={{ background: "var(--sidebar)", borderRight: "1px solid var(--border)", width: 210, flexShrink: 0 }} className="flex flex-col">
         <div style={{ padding: "18px 14px 10px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>UPTOWNS</div>
@@ -190,7 +215,16 @@ export default function Dashboard() {
           <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Teams</div>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {teams.map((t) => {
+          {teamsLoading && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: "var(--muted)" }}>Loading teams…</div>
+          )}
+          {teamsError && (
+            <div style={{ padding: "12px 14px", fontSize: 11, color: "var(--danger)", lineHeight: 1.45 }}>
+              Could not load teams. Try <code style={{ fontSize: 10 }}>npx prisma generate</code>, delete the <code style={{ fontSize: 10 }}>.next</code> folder, restart <code style={{ fontSize: 10 }}>npm run dev</code>, then refresh.
+              {teamsQueryError instanceof Error ? ` (${teamsQueryError.message})` : ""}
+            </div>
+          )}
+          {!teamsLoading && !teamsError && teams.map((t) => {
             const active = t.abbreviation === selectedAbbr;
             return (
               <button key={t.abbreviation} onClick={() => setSelectedAbbr(t.abbreviation)} style={{
@@ -211,10 +245,8 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* ── Main ─────────────────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
-        {/* Top bar */}
         <header style={{ height: 52, display: "flex", alignItems: "center", gap: 12, padding: "0 20px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
           <div style={{ width: 10, height: 10, borderRadius: "50%", background: team?.primaryHex ?? "#666" }} />
           <span style={{ fontWeight: 700, fontSize: 15 }}>{team?.name ?? "…"}</span>
@@ -224,13 +256,11 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+        <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0 }}>
 
-          {/* Control panel */}
           <div style={{ width: 270, flexShrink: 0, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column" }}>
-            {/* Tabs */}
             <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
-              {(["player", "background", "prompt"] as Tab[]).map((t) => (
+              {(["player", "background"] as Tab[]).map((t) => (
                 <button key={t} onClick={() => setTab(t)} style={{
                   flex: 1, padding: "10px 0", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
                   background: tab === t ? "var(--panel)" : "transparent",
@@ -245,9 +275,12 @@ export default function Dashboard() {
 
             <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 14 }}>
 
-              {/* ── Player tab ──────────────────────────────────────────────── */}
               {tab === "player" && (
                 <>
+                  <button type="button" onClick={() => setPromptInspectorOpen(true)} style={editPromptBtnStyle}>
+                    Edit prompt for this slot…
+                  </button>
+
                   <div>
                     <Label>Slot</Label>
                     <div style={{ display: "flex", gap: 6, marginTop: 5 }}>
@@ -273,26 +306,7 @@ export default function Dashboard() {
                     )}
                   </InfoCard>
 
-                  {/* Card slots (left/right defaults) */}
-                  {(team?.cardPlayers.length ?? 0) > 0 && (
-                    <div>
-                      <Label>Card slots</Label>
-                      <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 1 }}>
-                        {team?.cardPlayers.map((p) => (
-                          <button key={p.id} onClick={() => { setPlayerOverride(p.name); setNumberOverride(p.number); setSide(p.side as Side); }}
-                            style={{ display: "flex", justifyContent: "space-between", padding: "4px 6px", border: "none", background: "transparent", cursor: "pointer", borderRadius: 4, color: "var(--muted)", fontSize: 11, textAlign: "left" }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                            <span>#{p.number} {p.name}</span>
-                            <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: 10 }}>{p.position.toUpperCase()} · {p.side}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Full roster (DAL and any team with seeded roster) */}
-                  {(team?.rosterEntries.length ?? 0) > 0 && (
+                  {(team?.rosterEntries?.length ?? 0) > 0 && (
                     <div>
                       <Label>Roster</Label>
                       <div style={{
@@ -308,10 +322,11 @@ export default function Dashboard() {
                         background: "var(--panel)",
                       }}>
                         {team?.rosterEntries.map((r) => {
-                          const cardMatch = team.cardPlayers.find((c) => c.number === r.number);
+                          const cardMatch = team?.cardPlayers?.find((c) => c.number === r.number);
                           return (
                             <button
                               key={r.id}
+                              type="button"
                               onClick={() => {
                                 setPlayerOverride(r.name);
                                 setNumberOverride(r.number);
@@ -367,116 +382,57 @@ export default function Dashboard() {
                 </>
               )}
 
-              {/* ── Background tab ──────────────────────────────────────────── */}
               {tab === "background" && (
-                <InfoCard>
-                  <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 4, fontSize: 13 }}>Background Plate</div>
-                  <div style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-                    Stadium + skyline + sky floating island on chroma green. Sandwich layout applied automatically.
-                  </div>
-                </InfoCard>
-              )}
-
-              {/* ── Prompt tab ──────────────────────────────────────────────── */}
-              {tab === "prompt" && (
                 <>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <div>
-                      <Label>Type</Label>
-                      <div style={{ display: "flex", gap: 5, marginTop: 5 }}>
-                        <ToggleBtn active={!promptKey.startsWith("background")} onClick={() => {}}>Player</ToggleBtn>
-                        <ToggleBtn active={promptKey.startsWith("background")} onClick={() => {}}>Background</ToggleBtn>
-                      </div>
+                  <button type="button" onClick={() => setPromptInspectorOpen(true)} style={editPromptBtnStyle}>
+                    Edit background prompt…
+                  </button>
+                  <InfoCard>
+                    <div style={{ fontWeight: 600, color: "var(--text)", marginBottom: 4, fontSize: 13 }}>Background Plate</div>
+                    <div style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
+                      Stadium + skyline + sky floating island on chroma green. Sandwich layout applied automatically.
                     </div>
-                    {!promptKey.startsWith("background") && (
-                      <div>
-                        <Label>Side</Label>
-                        <div style={{ display: "flex", gap: 5, marginTop: 5 }}>
-                          {(["left", "right"] as Side[]).map((s) => (
-                            <ToggleBtn key={s} active={side === s} onClick={() => setSide(s)}>{s}</ToggleBtn>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <Label>Prompt</Label>
-                    {promptData?.isCustom && (
-                      <span style={{ fontSize: 10, fontWeight: 700, background: "#92400e", color: "#fde68a", padding: "2px 7px", borderRadius: 4, letterSpacing: "0.06em" }}>
-                        CUSTOM
-                      </span>
-                    )}
-                  </div>
-
-                  {promptLoading ? (
-                    <div style={{ color: "var(--muted)", fontSize: 12 }}>Loading…</div>
-                  ) : (
-                    <textarea
-                      value={promptDraft}
-                      onChange={(e) => setPromptDraft(e.target.value)}
-                      style={{
-                        width: "100%", minHeight: 260, resize: "vertical",
-                        background: "var(--panel)", border: "1px solid var(--border)",
-                        borderRadius: 6, color: "var(--text)", fontSize: 11,
-                        padding: 10, outline: "none", fontFamily: "monospace", lineHeight: 1.6,
-                      }}
-                    />
-                  )}
-
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={() => saveMutation.mutate(promptDraft)}
-                      disabled={saveMutation.isPending}
-                      style={{ flex: 1, ...btnStyle("var(--accent)") }}
-                    >
-                      {saveMutation.isPending ? "Saving…" : "Save Override"}
-                    </button>
-                    <button
-                      onClick={() => resetMutation.mutate()}
-                      disabled={resetMutation.isPending || !promptData?.isCustom}
-                      style={{ flex: 1, ...btnStyle("var(--border)"), color: promptData?.isCustom ? "var(--danger)" : "var(--muted)", cursor: promptData?.isCustom ? "pointer" : "not-allowed" }}
-                    >
-                      {resetMutation.isPending ? "Resetting…" : "Reset"}
-                    </button>
-                  </div>
-
-                  {(saveMutation.isSuccess || resetMutation.isSuccess) && (
-                    <div style={{ color: "var(--success)", fontSize: 12 }}>
-                      {saveMutation.isSuccess ? "Saved to database." : "Reset to default."}
-                    </div>
-                  )}
+                  </InfoCard>
                 </>
               )}
             </div>
 
-            {/* Generate button */}
-            {canGenerate && (
-              <div style={{ padding: 14, borderTop: "1px solid var(--border)" }}>
-                <button onClick={generate} disabled={isGenerating} style={{ width: "100%", padding: "11px 0", border: "none", borderRadius: 8, background: isGenerating ? "var(--border)" : "var(--accent)", color: isGenerating ? "var(--muted)" : "#fff", fontWeight: 700, fontSize: 13, cursor: isGenerating ? "not-allowed" : "pointer" }}>
-                  {isGenerating ? "Generating…" : `Generate ${tab === "background" ? "Background" : "Player"}`}
-                </button>
-                {status === "error" && <div style={{ marginTop: 8, color: "var(--danger)", fontSize: 11 }}>{genError}</div>}
-              </div>
-            )}
+            <div style={{ padding: 14, borderTop: "1px solid var(--border)" }}>
+              <button onClick={generate} disabled={isGenerating} style={{ width: "100%", padding: "11px 0", border: "none", borderRadius: 8, background: isGenerating ? "var(--border)" : "var(--accent)", color: isGenerating ? "var(--muted)" : "#fff", fontWeight: 700, fontSize: 13, cursor: isGenerating ? "not-allowed" : "pointer" }}>
+                {isGenerating ? "Generating…" : `Generate ${tab === "background" ? "Background" : "Player"}`}
+              </button>
+              {status === "error" && <div style={{ marginTop: 8, color: "var(--danger)", fontSize: 11 }}>{genError}</div>}
+            </div>
           </div>
 
-          {/* ── Preview area ──────────────────────────────────────────────────── */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-
-            {/* Main preview */}
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: previewAsset ? "#0d0d14" : "var(--panel)", position: "relative", overflow: "hidden" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+            <div
+              role="presentation"
+              onClick={() => { if (promptInspectorOpen) closePromptInspector(); }}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: previewAsset ? "#0d0d14" : "var(--panel)",
+                position: "relative",
+                overflow: "hidden",
+                cursor: promptInspectorOpen ? "zoom-out" : "default",
+              }}
+            >
               {!previewAsset && !isGenerating && (
-                <div style={{ textAlign: "center", color: "var(--muted)" }}>
+                <div style={{ textAlign: "center", color: "var(--muted)", pointerEvents: "none" }}>
                   <div style={{ fontSize: 40, marginBottom: 10, opacity: 0.25 }}>🏟</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>No asset yet</div>
-                  <div style={{ fontSize: 12, marginTop: 3 }}>Configure and hit Generate</div>
+                  <div style={{ fontSize: 12, marginTop: 3 }}>
+                    {promptInspectorOpen ? "Click here to close prompt editor" : "Configure and hit Generate"}
+                  </div>
                 </div>
               )}
               {previewAsset && (
                 <>
-                  <img src={previewAsset.dataUrl} alt={previewAsset.label} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-                  <div style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.7)", borderRadius: 5, padding: "3px 8px", fontSize: 10, color: "#999" }}>
+                  <img src={previewAsset.dataUrl} alt={previewAsset.label} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", pointerEvents: "none" }} />
+                  <div style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.7)", borderRadius: 5, padding: "3px 8px", fontSize: 10, color: "#999", pointerEvents: "none" }}>
                     {previewAsset.path}
                   </div>
                 </>
@@ -490,13 +446,12 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* History strip */}
-            <div style={{ borderTop: "1px solid var(--border)", background: "var(--sidebar)" }}>
+            <div style={{ borderTop: "1px solid var(--border)", background: "var(--sidebar)" }} onClick={(e) => e.stopPropagation()}>
               {assets.length > 0 && (
                 <div style={{ display: "flex", gap: 6, padding: "8px 10px", overflowX: "auto", alignItems: "center", borderBottom: "1px solid var(--border)" }}>
                   <div style={{ fontSize: 10, color: "var(--muted)", flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Session</div>
                   {assets.map((a, i) => (
-                    <button key={i} onClick={() => setPreviewAsset(a)} style={{ flexShrink: 0, height: 60, width: 60, border: `2px solid ${previewAsset === a ? "var(--accent)" : "var(--border)"}`, borderRadius: 5, overflow: "hidden", cursor: "pointer", padding: 0, background: "#000" }}>
+                    <button key={i} type="button" onClick={() => setPreviewAsset(a)} style={{ flexShrink: 0, height: 60, width: 60, border: `2px solid ${previewAsset === a ? "var(--accent)" : "var(--border)"}`, borderRadius: 5, overflow: "hidden", cursor: "pointer", padding: 0, background: "#000" }}>
                       <img src={a.dataUrl} alt={a.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </button>
                   ))}
@@ -522,13 +477,29 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {promptInspectorOpen && (
+            <PromptInspector
+              promptKey={promptKey}
+              promptDraft={promptDraft}
+              setPromptDraft={setPromptDraft}
+              promptData={promptData}
+              promptLoading={promptLoading}
+              resolvedSummary={resolvedSummary}
+              savePending={saveMutation.isPending}
+              resetPending={resetMutation.isPending}
+              saveSuccess={saveMutation.isSuccess}
+              resetSuccess={resetMutation.isSuccess}
+              onSave={() => saveMutation.mutate(promptDraft)}
+              onReset={() => resetMutation.mutate()}
+              onClose={closePromptInspector}
+            />
+          )}
         </div>
       </main>
     </div>
   );
 }
-
-// ── Shared components ──────────────────────────────────────────────────────────
 
 function Label({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{children}</div>;
@@ -540,7 +511,7 @@ function InfoCard({ children }: { children: React.ReactNode }) {
 
 function ToggleBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} style={{
+    <button type="button" onClick={onClick} style={{
       flex: 1, padding: "6px 0", border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
       borderRadius: 6, cursor: "pointer", background: active ? "rgba(108,99,255,0.2)" : "transparent",
       color: active ? "var(--accent)" : "var(--muted)", fontWeight: 600, fontSize: 12,
@@ -560,7 +531,7 @@ function ModelToggle({ value, onChange }: { value: ModelTier; onChange: (v: Mode
   return (
     <div style={{ display: "flex", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", fontSize: 11 }}>
       {(["flash", "pro"] as ModelTier[]).map((m) => (
-        <button key={m} onClick={() => onChange(m)} style={{
+        <button type="button" key={m} onClick={() => onChange(m)} style={{
           padding: "4px 11px", border: "none", cursor: "pointer", fontWeight: 700,
           background: value === m ? "var(--accent)" : "transparent",
           color: value === m ? "#fff" : "var(--muted)",
@@ -583,10 +554,6 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)",
   fontSize: 12, outline: "none",
 };
-
-function btnStyle(bg: string): React.CSSProperties {
-  return { padding: "8px 0", border: "none", borderRadius: 6, background: bg, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer" };
-}
 
 const POSES = [
   "throwing", "scrambling", "rushing", "route", "jump_catch", "catching",
