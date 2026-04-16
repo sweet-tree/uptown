@@ -2,7 +2,19 @@ import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
 
-export const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+let genaiClient: GoogleGenAI | undefined;
+
+/** Lazy init so missing `GEMINI_API_KEY` does not crash unrelated routes at import time. */
+export function getGenAI(): GoogleGenAI {
+  if (!genaiClient) {
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not set");
+    }
+    genaiClient = new GoogleGenAI({ apiKey });
+  }
+  return genaiClient;
+}
 
 export const MODELS = {
   flash: "gemini-2.5-flash-image",

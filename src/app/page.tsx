@@ -24,7 +24,7 @@ interface GeneratedAsset {
 
 export default function Dashboard() {
   const qc = useQueryClient();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
 
   const [selectedAbbr, setSelectedAbbr] = useState("DAL");
   const [tab, setTab] = useState<Tab>("player");
@@ -52,6 +52,9 @@ export default function Dashboard() {
     queryKey: ["teams", "nfl"],
     queryFn: () => getTeams("nfl"),
     staleTime: Infinity,
+    // Avoid calling server actions before session is known — `redirect()` from
+    // `requireUser()` during a prefetch/RSC path can surface as a 500 on Vercel.
+    enabled: sessionStatus === "authenticated",
   });
 
   const team = teams.find((t) => t.abbreviation === selectedAbbr) ?? teams[0];
@@ -65,7 +68,7 @@ export default function Dashboard() {
   const { data: promptData, isLoading: promptLoading } = useQuery({
     queryKey: ["prompt", promptKey],
     queryFn: () => getPrompt(promptKey),
-    enabled: promptInspectorOpen,
+    enabled: promptInspectorOpen && sessionStatus === "authenticated",
   });
 
   const saveMutation = useMutation({
@@ -123,6 +126,7 @@ export default function Dashboard() {
   const { data: history } = useQuery({
     queryKey: ["generations", selectedAbbr],
     queryFn: () => getGenerations(selectedAbbr),
+    enabled: sessionStatus === "authenticated",
   });
 
   const resolvedSummary = useMemo(() => {
