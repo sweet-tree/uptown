@@ -1,6 +1,9 @@
+/**
+ * Do not statically import `@/lib/db` here: `auth` is loaded by `proxy.ts`, which may run on the
+ * Edge runtime on Vercel. Prisma/Neon must only load on the Node path (credentials `authorize`).
+ */
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { getPrisma } from "@/lib/db";
 
 /** Trim whitespace; strip trailing slashes (Auth.js expects a canonical origin). */
 function normalizeAuthUrlEnv() {
@@ -40,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new InvalidCredentials();
         }
 
+        const { getPrisma } = await import("@/lib/db");
         const prisma = getPrisma();
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) {

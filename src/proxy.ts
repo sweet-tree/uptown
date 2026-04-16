@@ -8,6 +8,6 @@ export const config = {
      * - Static / image assets
      * Other `/api/*` still hit the proxy so `authorized` can enforce sessions.
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/auth|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
