@@ -5,12 +5,13 @@ config({ path: ".env" });
 import { argon2id, hash } from "argon2";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { getDatabaseUrl } from "../src/lib/database-url";
 import { seedNFL } from "./seeds/nfl/index";
 import { seedNBA } from "./seeds/nba/index";
 
 async function main() {
   const adapter = new PrismaNeon({
-    connectionString: process.env.POSTGRES_PRISMA_URL!,
+    connectionString: getDatabaseUrl(),
   });
   const prisma = new PrismaClient({ adapter });
 
