@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { NFL_TEAMS } from "@/lib/sports-data";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { getPrompt, setPrompt, deletePrompt, getGenerations } from "@/app/actions/prompts";
-import type { TeamData } from "@/lib/types";
+import { getTeams } from "@/app/actions/teams";
+import type { TeamWithPlayers } from "@/app/actions/teams";
 
 type Tab = "player" | "background" | "prompt";
 type Side = "left" | "right";
@@ -18,8 +18,6 @@ interface GeneratedAsset {
   path: string;
 }
 
-const TEAM_LIST = Object.entries(NFL_TEAMS).map(([abbr, t]) => ({ abbr, ...t }));
-
 export default function Dashboard() {
   const qc = useQueryClient();
 
@@ -31,19 +29,25 @@ export default function Dashboard() {
   const [assets, setAssets]                  = useState<GeneratedAsset[]>([]);
   const [previewAsset, setPreviewAsset]      = useState<GeneratedAsset | null>(null);
 
-  // Player controls
   const [side, setSide]                      = useState<Side>("left");
   const [playerOverride, setPlayerOverride]  = useState("");
   const [numberOverride, setNumberOverride]  = useState("");
   const [poseOverride, setPoseOverride]      = useState("");
   const [ballOverride, setBallOverride]      = useState<"auto" | "yes" | "no">("auto");
 
-  // Prompt tab
   const [promptDraft, setPromptDraft]        = useState("");
 
-  const team: TeamData = NFL_TEAMS[selectedAbbr];
-  const leftDefault  = team.cardPlayers.find((p) => p.side === "left");
-  const rightDefault = team.cardPlayers.find((p) => p.side === "right");
+  // ── Load teams from DB ────────────────────────────────────────────────────────
+  const { data: teams = [] } = useQuery<TeamWithPlayers[]>({
+    queryKey: ["teams", "nfl"],
+    queryFn:  () => getTeams("nfl"),
+    staleTime: Infinity,
+  });
+
+  const team = teams.find((t) => t.abbreviation === selectedAbbr) ?? teams[0];
+
+  const leftDefault  = team?.cardPlayers.find((p) => p.side === "left");
+  const rightDefault = team?.cardPlayers.find((p) => p.side === "right");
 
   // Derive current prompt key
   const promptKey =
@@ -56,10 +60,7 @@ export default function Dashboard() {
       : `player:${selectedAbbr}:${side}`;
 
   // ── TanStack Query: fetch prompt ──────────────────────────────────────────────
-  const {
-    data: promptData,
-    isLoading: promptLoading,
-  } = useQuery({
+  const { data: promptData, isLoading: promptLoading } = useQuery({
     queryKey: ["prompt", promptKey],
     queryFn: () => getPrompt(promptKey),
     enabled: tab === "prompt",
@@ -71,22 +72,19 @@ export default function Dashboard() {
 
   // Reset draft when key changes
   useEffect(() => {
-    if (tab !== "prompt") return;
-    const defaultText =
-      promptKey.startsWith("background")
-        ? buildBackgroundPrompt(team)
-        : (() => {
-            const spec = team.cardPlayers.find((p) => p.side === side);
-            return buildPlayerPrompt(
-              team,
-              spec?.name ?? "Player",
-              spec?.number ?? "0",
-              spec?.position ?? "qb",
-              side,
-              spec?.pose ?? "auto",
-              spec?.ball ?? "auto",
-            );
-          })();
+    if (tab !== "prompt" || !team) return;
+    const spec = team.cardPlayers.find((p) => p.side === side);
+    const defaultText = promptKey.startsWith("background")
+      ? buildBackgroundPrompt(team)
+      : buildPlayerPrompt(
+          team,
+          spec?.name ?? "Player",
+          spec?.number ?? "0",
+          spec?.position ?? "qb",
+          side,
+          spec?.pose ?? "auto",
+          spec?.ball ?? "auto",
+        );
     setPromptDraft(defaultText);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAbbr, side, tab]);
@@ -101,21 +99,19 @@ export default function Dashboard() {
     mutationFn: () => deletePrompt(promptKey),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["prompt", promptKey] });
-      const defaultText =
-        promptKey.startsWith("background")
-          ? buildBackgroundPrompt(team)
-          : (() => {
-              const spec = team.cardPlayers.find((p) => p.side === side);
-              return buildPlayerPrompt(
-                team,
-                spec?.name ?? "Player",
-                spec?.number ?? "0",
-                spec?.position ?? "qb",
-                side,
-                spec?.pose ?? "auto",
-                spec?.ball ?? "auto",
-              );
-            })();
+      if (!team) return;
+      const spec = team.cardPlayers.find((p) => p.side === side);
+      const defaultText = promptKey.startsWith("background")
+        ? buildBackgroundPrompt(team)
+        : buildPlayerPrompt(
+            team,
+            spec?.name ?? "Player",
+            spec?.number ?? "0",
+            spec?.position ?? "qb",
+            side,
+            spec?.pose ?? "auto",
+            spec?.ball ?? "auto",
+          );
       setPromptDraft(defaultText);
     },
   });
@@ -130,7 +126,6 @@ export default function Dashboard() {
   async function generate() {
     setStatus("loading");
     setGenError("");
-
     try {
       let res: Response;
       if (tab === "background" || (tab === "prompt" && promptKey.startsWith("background"))) {
@@ -195,20 +190,20 @@ export default function Dashboard() {
           <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Teams</div>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
-          {TEAM_LIST.map(({ abbr, name, primaryHex }) => {
-            const active = abbr === selectedAbbr;
+          {teams.map((t) => {
+            const active = t.abbreviation === selectedAbbr;
             return (
-              <button key={abbr} onClick={() => setSelectedAbbr(abbr)} style={{
+              <button key={t.abbreviation} onClick={() => setSelectedAbbr(t.abbreviation)} style={{
                 display: "flex", alignItems: "center", gap: 9, width: "100%",
                 padding: "8px 14px", border: "none", cursor: "pointer", textAlign: "left",
                 background: active ? "rgba(108,99,255,0.15)" : "transparent",
                 borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
                 color: active ? "var(--text)" : "var(--muted)",
               }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: primaryHex, flexShrink: 0 }} />
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: t.primaryHex, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: active ? 700 : 400 }}>{abbr}</div>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>{name}</div>
+                  <div style={{ fontSize: 12, fontWeight: active ? 700 : 400 }}>{t.abbreviation}</div>
+                  <div style={{ fontSize: 10, color: "var(--muted)" }}>{t.name}</div>
                 </div>
               </button>
             );
@@ -221,9 +216,9 @@ export default function Dashboard() {
 
         {/* Top bar */}
         <header style={{ height: 52, display: "flex", alignItems: "center", gap: 12, padding: "0 20px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: team.primaryHex }} />
-          <span style={{ fontWeight: 700, fontSize: 15 }}>{team.name}</span>
-          <span style={{ color: "var(--muted)", fontSize: 12 }}>{team.stadiumName}</span>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: team?.primaryHex ?? "#666" }} />
+          <span style={{ fontWeight: 700, fontSize: 15 }}>{team?.name ?? "…"}</span>
+          <span style={{ color: "var(--muted)", fontSize: 12 }}>{team?.stadiumName}</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
             <ModelToggle value={model} onChange={setModel} />
           </div>
@@ -278,6 +273,24 @@ export default function Dashboard() {
                     )}
                   </InfoCard>
 
+                  {/* Card Players list */}
+                  {(team?.cardPlayers.length ?? 0) > 0 && (
+                    <div>
+                      <Label>Card Players</Label>
+                      <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 1 }}>
+                        {team?.cardPlayers.map((p) => (
+                          <button key={p.id} onClick={() => { setPlayerOverride(p.name); setNumberOverride(p.number); setSide(p.side as Side); }}
+                            style={{ display: "flex", justifyContent: "space-between", padding: "4px 6px", border: "none", background: "transparent", cursor: "pointer", borderRadius: 4, color: "var(--muted)", fontSize: 11, textAlign: "left" }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                            <span>#{p.number} {p.name}</span>
+                            <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: 10 }}>{p.position.toUpperCase()} · {p.side}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <Label>Override Player Name</Label>
                     <Input value={playerOverride} onChange={setPlayerOverride} placeholder="e.g. CeeDee Lamb" />
@@ -301,23 +314,6 @@ export default function Dashboard() {
                       ))}
                     </div>
                   </div>
-
-                  {Object.keys(team.roster).length > 0 && (
-                    <div>
-                      <Label>Roster</Label>
-                      <div style={{ marginTop: 5, maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
-                        {Object.values(team.roster).map((p) => (
-                          <button key={p.number} onClick={() => { setPlayerOverride(p.name); setNumberOverride(p.number); }}
-                            style={{ display: "flex", justifyContent: "space-between", padding: "4px 6px", border: "none", background: "transparent", cursor: "pointer", borderRadius: 4, color: "var(--muted)", fontSize: 11, textAlign: "left" }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                            <span>#{p.number} {p.name}</span>
-                            <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: 10 }}>{p.position.toUpperCase()}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
 
@@ -446,7 +442,6 @@ export default function Dashboard() {
 
             {/* History strip */}
             <div style={{ borderTop: "1px solid var(--border)", background: "var(--sidebar)" }}>
-              {/* Session thumbnails */}
               {assets.length > 0 && (
                 <div style={{ display: "flex", gap: 6, padding: "8px 10px", overflowX: "auto", alignItems: "center", borderBottom: "1px solid var(--border)" }}>
                   <div style={{ fontSize: 10, color: "var(--muted)", flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>Session</div>
@@ -458,7 +453,6 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* DB history */}
               {history && history.length > 0 && (
                 <div style={{ padding: "8px 12px", maxHeight: 100, overflowY: "auto" }}>
                   <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>

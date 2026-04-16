@@ -7,13 +7,67 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Sports catalog ─────────────────────────────────────────────────────────────
+
+model Sport {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique   // "nfl" | "nba" | "soccer" | "baseball"
+  name      String
+  active    Boolean  @default(true)
+  teams     Team[]
+  createdAt DateTime @default(now())
+}
+
+model Team {
+  id               Int          @id @default(autoincrement())
+  abbreviation     String
+  sportId          Int
+  sport            Sport        @relation(fields: [sportId], references: [id])
+  name             String
+  city             String
+  primaryHex       String
+  secondaryHex     String
+  stadiumName      String
+  stadiumPrompt    String       @db.Text
+  skylinePrompt    String       @db.Text
+  skyPrompt        String       @db.Text
+  jerseyPrompt     String       @db.Text
+  pantsPrompt      String       @db.Text
+  helmetPrompt     String       @db.Text
+  numberStyle      String
+  logoPrompt       String       @db.Text
+  active           Boolean      @default(true)
+  cardPlayers      CardPlayer[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([sportId, abbreviation])
+}
+
+model CardPlayer {
+  id         Int    @id @default(autoincrement())
+  teamId     Int
+  team       Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name       String
+  number     String
+  position   String
+  side       String            // "left" | "right"
+  pose       String @default("auto")
+  ball       String @default("auto")
+  order      Int    @default(0) // for consistent ordering
+}
+
+// ── Prompt overrides ───────────────────────────────────────────────────────────
+
 model Prompt {
   id        Int      @id @default(autoincrement())
   key       String   @unique
-  text      String
+  text      String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ── Generation log ─────────────────────────────────────────────────────────────
 
 model Generation {
   id         Int      @id @default(autoincrement())

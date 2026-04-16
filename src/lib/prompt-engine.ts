@@ -1,4 +1,15 @@
-import type { TeamData } from "./types";
+// Accepts either the static TeamData shape or a DB Team row — both have the same prompt fields
+type TeamLike = {
+  name: string;
+  stadiumName: string;
+  stadiumPrompt: string;
+  skylinePrompt: string;
+  jerseyPrompt: string;
+  pantsPrompt: string;
+  helmetPrompt: string;
+  numberStyle: string;
+  logoPrompt: string;
+};
 
 const STYLE_ANCHOR = `Match the exact illustration style visible in the provided reference image:
 • Semi-realistic sports card illustration — NOT flat cartoon
@@ -80,7 +91,7 @@ function playerVisor(visor: string): string {
 }
 
 export function buildPlayerPrompt(
-  team: TeamData,
+  team: TeamLike,
   name: string,
   number: string,
   position: string,
@@ -151,7 +162,7 @@ CANVAS
 • Portrait 3:4 format`;
 }
 
-export function buildBackgroundPrompt(team: TeamData): string {
+export function buildBackgroundPrompt(team: TeamLike): string {
   return `Generate a background plate illustration for a collectible sports card, using the provided reference image as the exact composition and style guide.
 
 ${STYLE_ANCHOR}
@@ -204,14 +215,14 @@ PERSPECTIVE: Standing close to the stadium entrance — ground level, intimate. 
 PLATFORM: Wide dark oval base. Spans ~80% of the canvas width (not edge-to-edge — green is visible on both sides). Sits near the bottom with ~8% green below it.
 
 STADIUM:
-• ${team.uptownsStadiumPrompt}
+• ${team.stadiumPrompt}
 • "${team.stadiumName}" clearly lettered on the EXTERIOR facade wall — large visible signage on the outside of the building, never on glass, never inside
 • ${team.logoPrompt} prominently on the facade panels
 • Large and dominant — fills ~78% of the canvas width, front-facing and symmetrical
 • Facade details, signage, and architecture clearly visible
 
 SKYLINE:
-• ${team.uptownsSkylinePrompt}
+• ${team.skylinePrompt}
 • BARELY VISIBLE — only the very tips of the tallest 2–3 landmarks peek just slightly above the stadium roofline. Most buildings are completely hidden behind the stadium. The skyline is a subtle background hint, NOT a prominent feature. It adds depth but does not rise high.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

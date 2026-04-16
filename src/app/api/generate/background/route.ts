@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ai, MODELS, fileToInlineData, saveImage, extractImageBase64 } from "@/lib/gemini";
-import { getTeam } from "@/lib/sports-data";
+import { getTeamByAbbr } from "@/app/actions/teams";
 import { buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { prisma } from "@/lib/db";
 import { saveGeneration } from "@/app/actions/prompts";
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const body: GenerateBackgroundRequest = await req.json();
     const { team: teamAbbr, model = "flash" } = body;
 
-    const team = getTeam(teamAbbr);
+    const team = await getTeamByAbbr(teamAbbr);
 
     // Check for prompt override in DB
     const promptKey = `background:${teamAbbr.toUpperCase()}`;

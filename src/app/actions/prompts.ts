@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
-import { getTeam } from "@/lib/sports-data";
+import { getTeamByAbbr } from "./teams";
+import type { TeamWithPlayers } from "./teams";
 
 export interface PromptResult {
   text: string;
@@ -26,9 +27,8 @@ export async function getPrompt(key: string): Promise<PromptResult> {
   const stored = await prisma.prompt.findUnique({ where: { key } });
   if (stored) return { text: stored.text, isCustom: true };
 
-  // Generate default from engine
   const [type, teamAbbr, side] = key.split(":");
-  const team = getTeam(teamAbbr);
+  const team = await getTeamByAbbr(teamAbbr);
 
   let text: string;
   if (type === "background") {
@@ -83,3 +83,6 @@ export async function getAllGenerations() {
     take: 100,
   });
 }
+
+// Re-export for convenience
+export type { TeamWithPlayers };

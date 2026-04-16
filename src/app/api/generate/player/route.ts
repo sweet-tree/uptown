@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ai, MODELS, fileToInlineData, saveImage, extractImageBase64 } from "@/lib/gemini";
-import { getTeam } from "@/lib/sports-data";
+import { getTeamByAbbr } from "@/app/actions/teams";
 import { buildPlayerPrompt } from "@/lib/prompt-engine";
 import { prisma } from "@/lib/db";
 import { saveGeneration } from "@/app/actions/prompts";
@@ -13,9 +13,8 @@ export async function POST(req: NextRequest) {
     const body: GeneratePlayerRequest = await req.json();
     const { team: teamAbbr, side, player, number, pose, ball, model = "flash" } = body;
 
-    const team = getTeam(teamAbbr);
+    const team = await getTeamByAbbr(teamAbbr);
 
-    // Resolve which player to generate
     let resolvedName: string;
     let resolvedNumber: string;
     let resolvedPosition: string;
@@ -30,40 +29,31 @@ export async function POST(req: NextRequest) {
         resolvedName     = fromCard.name;
         resolvedNumber   = fromCard.number;
         resolvedPosition = fromCard.position;
-        if (!pose) resolvedPose = fromCard.pose ?? "auto";
-        if (!ball) resolvedBall = fromCard.ball ?? "auto";
+        if (!pose) resolvedPose = fromCard.pose;
+        if (!ball) resolvedBall = fromCard.ball;
       } else {
-        const fromRoster = Object.values(team.roster).find(
-          (p) => p.name.toLowerCase() === player.toLowerCase()
-        );
-        if (!fromRoster) {
-          return NextResponse.json({ ok: false, error: `Player "${player}" not found in ${teamAbbr} roster` }, { status: 400 });
-        }
-        resolvedName     = fromRoster.name;
-        resolvedNumber   = fromRoster.number;
-        resolvedPosition = fromRoster.position;
+        return NextResponse.json({ ok: false, error: `Player "${player}" not found for ${teamAbbr}` }, { status: 400 });
       }
     } else if (number) {
-      const fromRoster = team.roster[number];
-      if (!fromRoster) {
-        return NextResponse.json({ ok: false, error: `#${number} not found in ${teamAbbr} roster` }, { status: 400 });
+      const fromCard = team.cardPlayers.find((p) => p.number === number);
+      if (!fromCard) {
+        return NextResponse.json({ ok: false, error: `#${number} not found for ${teamAbbr}` }, { status: 400 });
       }
-      resolvedName     = fromRoster.name;
-      resolvedNumber   = fromRoster.number;
-      resolvedPosition = fromRoster.position;
+      resolvedName     = fromCard.name;
+      resolvedNumber   = fromCard.number;
+      resolvedPosition = fromCard.position;
     } else {
       const spec = team.cardPlayers.find((p) => p.side === side);
       if (!spec) {
-        return NextResponse.json({ ok: false, error: `No default ${side} player defined for ${teamAbbr}` }, { status: 400 });
+        return NextResponse.json({ ok: false, error: `No default ${side} player for ${teamAbbr}` }, { status: 400 });
       }
       resolvedName     = spec.name;
       resolvedNumber   = spec.number;
       resolvedPosition = spec.position;
-      if (!pose) resolvedPose = spec.pose ?? "auto";
-      if (!ball) resolvedBall = spec.ball ?? "auto";
+      if (!pose) resolvedPose = spec.pose;
+      if (!ball) resolvedBall = spec.ball;
     }
 
-    // Check for prompt override in DB
     const promptKey = `player:${teamAbbr.toUpperCase()}:${side}`;
     const storedPrompt = await prisma.prompt.findUnique({ where: { key: promptKey } });
     const prompt = storedPrompt?.text ?? buildPlayerPrompt(
