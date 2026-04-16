@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { auth } from "@/auth";
+import { serverSessionOrNull } from "@/lib/server-session";
 import "./globals.css";
 import { Providers } from "./providers";
+
+export const dynamic = "force-dynamic";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,7 +27,13 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
+  let raw: unknown;
+  try {
+    raw = await auth();
+  } catch {
+    raw = null;
+  }
+  const session = serverSessionOrNull(raw);
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <body>

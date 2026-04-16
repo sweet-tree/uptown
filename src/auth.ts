@@ -22,6 +22,7 @@ class InvalidCredentials extends CredentialsSignin {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  secret: process.env.AUTH_SECRET?.trim() || process.env.NEXTAUTH_SECRET?.trim(),
   pages: { signIn: "/login" },
   session: { strategy: "jwt", maxAge: 14 * 24 * 60 * 60 },
   providers: [
@@ -66,6 +67,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return true;
       }
       if (path.startsWith("/api/auth")) {
+        return true;
+      }
+      if (path.startsWith("/api/health")) {
         return true;
       }
 
