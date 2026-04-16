@@ -38,6 +38,12 @@ export interface TeamData {
 export type GenerateType = "background" | "player";
 export type ModelTier = "flash" | "pro";
 
+/** Dashboard copy for each tier — keep aligned with `MODELS` in `src/lib/gemini.ts`. */
+export const MODEL_TIER_DISPLAY: Record<ModelTier, string> = {
+  flash: "3.1 Flash",
+  pro: "3 Pro",
+};
+
 export interface GeneratePlayerRequest {
   team: string;
   side: "left" | "right";

@@ -18,7 +18,7 @@ export function getGenAI(): GoogleGenAI {
   return genaiClient;
 }
 
-/** Match `make_player.py` / `make_background.py` model IDs (not the generic Flash image alias). */
+/** Match `make_player.py` / `make_background.py` model IDs. Dashboard labels: `MODEL_TIER_DISPLAY` in `types.ts`. */
 export const MODELS = {
   flash: "gemini-3.1-flash-image-preview",
   pro: "gemini-3-pro-image-preview",

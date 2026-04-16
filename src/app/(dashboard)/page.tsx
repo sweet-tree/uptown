@@ -6,14 +6,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { getPrompt, setPrompt, deletePrompt, getGenerations } from "@/app/actions/prompts";
 import { getTeams } from "@/app/actions/teams";
-import type { TeamWithPlayers } from "@/lib/types";
+import { MODEL_TIER_DISPLAY, type ModelTier, type TeamWithPlayers } from "@/lib/types";
 import { PromptInspector } from "@/components/prompt-inspector";
 import { TeamPicker } from "@/components/team-picker";
 import { RosterCombobox } from "@/components/roster-combobox";
 
 type Tab = "player" | "background";
 type Side = "left" | "right";
-type ModelTier = "flash" | "pro";
 type Status = "idle" | "loading" | "done" | "error";
 
 interface GeneratedAsset {
@@ -448,7 +447,7 @@ export default function Dashboard() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-[2px]">
                   <Spinner />
                   <div className="text-base font-semibold text-white">
-                    Gemini {model === "pro" ? "3 Pro" : "2.5 Flash"} generating…
+                    Gemini {MODEL_TIER_DISPLAY[model]} generating…
                   </div>
                   <div className="text-sm text-[var(--muted)]">Usually 30–90 seconds</div>
                 </div>
@@ -573,7 +572,7 @@ function ModelToggle({ value, onChange }: { value: ModelTier; onChange: (v: Mode
     <div className="ds-model-toggle">
       {(["flash", "pro"] as ModelTier[]).map((m) => (
         <button key={m} type="button" data-on={value === m ? "true" : "false"} onClick={() => onChange(m)}>
-          {m === "flash" ? "Flash" : "Pro"}
+          {MODEL_TIER_DISPLAY[m]}
         </button>
       ))}
     </div>
