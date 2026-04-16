@@ -1,14 +1,22 @@
 """
-Compositor — chroma key extraction with green spill suppression.
+Compositor — two extraction paths:
 
-Pipeline:
-  1. Dual-condition mask: RGB Euclidean distance + green channel dominance
-  2. Erode 2px to remove green fringing
-  3. Gaussian blur the mask edge for smooth alpha transition
-  4. Re-threshold to keep crisp anti-aliased edges
-  5. Despill — suppress residual green color cast on semi-transparent edge pixels
+  extract_sticker(img)
+    Chroma key pipeline for Pass 1 sticker (chroma green #00FF00 background).
+    1. Dual-condition mask: RGB Euclidean distance + green channel dominance
+    2. Erode 2px, Gaussian blur for smooth alpha transition
+    3. Re-threshold for crisp anti-aliased edges
+    4. Despill — suppress residual green color cast on edge pixels
+
+  extract_asset(img, model_name)
+    Neural background removal via rembg (BiRefNet) for isolated assets
+    (stadium, players, scene elements). Works on any background color —
+    no chroma dependency, no color contamination risk.
+    Default model: "birefnet-general"   — best for architectural subjects
+    Portrait model: "birefnet-portrait" — optimized for human figures
 """
 
+import io
 import logging
 import numpy as np
 from PIL import Image, ImageFilter
@@ -94,4 +102,37 @@ def extract_sticker(
     fg_pixels  = int((mask_arr > 128).sum())
     total      = card.width * card.height
     log.info(f"Chroma key: {fg_pixels / total * 100:.1f}% foreground, clean edges + despilled")
+    return result
+
+
+def extract_asset(
+    img: Image.Image,
+    model_name: str = "birefnet-general",
+) -> Image.Image:
+    """
+    Neural background removal via rembg (BiRefNet).
+
+    SOTA for isolated asset extraction — works on any background color,
+    handles complex silhouettes without color contamination risk.
+
+    model_name:
+      "birefnet-general"   — architectural subjects, stadiums, objects (default)
+      "birefnet-portrait"  — human figures, players (higher fidelity on people)
+      "u2net"              — fast fallback if BiRefNet weights aren't cached yet
+    """
+    from rembg import remove, new_session
+
+    log.info(f"rembg extraction: model={model_name} ...")
+    session = new_session(model_name)
+
+    buf = io.BytesIO()
+    img.convert("RGBA").save(buf, format="PNG")
+
+    result_bytes = remove(buf.getvalue(), session=session)
+    result = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
+
+    alpha = np.array(result)[:, :, 3]
+    fg_pixels = int((alpha > 128).sum())
+    total     = result.width * result.height
+    log.info(f"rembg: {fg_pixels / total * 100:.1f}% foreground — neural mask, clean edges")
     return result

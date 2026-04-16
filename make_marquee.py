@@ -34,31 +34,41 @@ MARQUEE_REF = Path("assets/uptowns_card_ref.jpg")
 
 
 def build_marquee_prompt(p1: str, p2: str) -> str:
-    return f"""═══════════════════════════════════════════════════════════
-TASK: Reproduce the marquee sign from this card with new player names.
-═══════════════════════════════════════════════════════════
+    return f"""The provided image IS the marquee sign. Reproduce it exactly — then change only the text.
 
-You are given a sports card image. It contains a theatre marquee sign in the upper center.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT TO COPY — IDENTICAL, NO CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Frame shape — the exact ornate silhouette with decorative curved cutouts on all sides
+• Frame color — deep dark brown / mahogany, same shading and depth
+• Bulbs — single row of warm amber glowing bulbs running all the way around the inner frame edge, same size, same spacing, same warm glow
+• Inner panel — off-white / cream color, same horizontal wood-slat lines across the panel
+• Warm amber glow radiating outward from the bulbs onto the surrounding area
+• Thin white die-cut border tracing the exact outer silhouette of the sign
+• Overall proportions, padding, and scale of all elements
 
-Reproduce ONLY that marquee sign — same shape, same gold frame, same bulbs, same cream panel, same style — with these new names:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT TO CHANGE — TEXT ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Replace the three text lines on the cream panel with:
 
   TOP LINE:    "{p1.upper()}"
   CENTER LINE: "UPTOWNS"
   BOTTOM LINE: "{p2.upper()}"
 
-Match the typography exactly as it appears in the reference:
-- Same font style, same relative sizes, same letter-spacing, same dark brown color
-- UPTOWNS is the largest line, wide letter-spacing
-- Player names are slightly smaller, condensed bold
+Match the typography from the reference exactly:
+• "UPTOWNS" — same ultra-bold weight, same large size, same wide letter-spacing, same dark brown color
+• Player name lines — same condensed bold weight, same smaller size, same dark brown color, same centered alignment
+• Nothing else about the sign changes
 
-The sign has a thin white die-cut border tracing its outer silhouette.
-
-BACKGROUND: Pure chroma green (#00FF00). Sign centered on chroma green. No glow, no shadow, no players, no stadium — just the sign on green.
-
-═══════════════════════════════════════════════════════════
-REMINDER: Copy the marquee sign from the reference. Change only the text. Chroma green background.
-Text: "{p1.upper()}" / "UPTOWNS" / "{p2.upper()}"
-═══════════════════════════════════════════════════════════"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Background: pure chroma green (#00FF00) — every pixel outside the sign is exactly #00FF00
+• Sign centered, filling most of the frame
+• The complete sign must be fully visible — no part of the frame or bulbs is cut off at any edge
+• Comfortable margin of green background visible on all four sides around the sign
+• No players, no stadium, no card border — only the sign on green"""
 
 
 def run(p1: str, p2: str, model_key: str = "pro") -> PILImage.Image:
@@ -75,6 +85,8 @@ def run(p1: str, p2: str, model_key: str = "pro") -> PILImage.Image:
         contents=[prompt, ref],
         config=types.GenerateContentConfig(
             response_modalities=["TEXT", "IMAGE"],
+            image_config=types.ImageConfig(
+                aspect_ratio="4:3", image_size="2K"),
         ),
     )
 

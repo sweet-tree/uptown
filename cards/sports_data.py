@@ -11,17 +11,30 @@ Fields used by the Uptowns prompt engine:
   is the TALLEST (defines the die-cut top). Keep them separate and non-redundant.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
 
 @dataclass
+class RosterPlayer:
+    """Single player entry from the active roster."""
+    name: str
+    number: str
+    position: str   # qb / rb / wr / te / de / dt / lb / cb / db / s / ot / og / c / k / p / ls
+
+
+@dataclass
 class PlayerSpec:
+    """Card-slot assignment — a RosterPlayer with a facing side, pose, and ball."""
     name: str
     number: str
     position: str
-    side: str = "left"
+    side: str  = "left"   # "left" → faces right | "right" → faces left
+    pose: str  = "auto"   # auto / throwing / rushing / catching / jump_catch / route /
+                           # pass_rush / speed_rush / bull_rush / linebacker / coverage /
+                           # press_coverage / kicking / stiff_arm / hurdle / celebration
+    ball: str  = "auto"   # auto / yes / no
 
 
 @dataclass
@@ -55,6 +68,8 @@ class TeamData:
     number_style: str
     logo_prompt: str
     uptowns_sky_prompt: str = ""
+    card_players: list = field(default_factory=list)  # list[PlayerSpec] — default left/right for the card
+    roster: dict = field(default_factory=dict)         # dict[number_str, RosterPlayer] — full active roster
 
 
 NFL_TEAMS = {
@@ -64,12 +79,16 @@ NFL_TEAMS = {
         stadium_name="M&T Bank Stadium",
         uptowns_stadium_prompt="M&T Bank Stadium illustrated front-facing — brick and steel exterior with arched windows, dark purple and gold banners on the facade, Ravens shield logos on the building panels, trees and landscaping at the base",
         uptowns_skyline_prompt="Baltimore skyline: the tall cylindrical Baltimore World Trade Center tower centered (tallest, distinctive rounded top), flanked by shorter rectangular downtown office buildings stepping down at varying heights on both sides, Inner Harbor waterfront at the base",
-        uptowns_sky_prompt="Deep purple and gold night sky. The World Trade Center's cylindrical rounded top is the single highest die-cut point — flanking buildings step down from it in both directions, each rooftop at a different level, creating a complex jagged urban silhouette. Warm amber glow from Inner Harbor lights rises from below. Die-cut traces every individual rooftop — never a smooth arc.",
+        uptowns_sky_prompt="Rich purple and gold dusk sky over Baltimore — deep royal purple at the top fading to warm amber and gold near the horizon from the Inner Harbor glow below. Dramatic volumetric clouds at dramatically varied heights: a tall billowing formation high on the left, the Baltimore World Trade Center's distinctive cylindrical top piercing through lower clouds at center, and a wide lower cloud bank on the right — each at a different height, creating a richly irregular silhouette. Deep purple sky visible in gaps between formations. Cinematic, premium, Ravens colors throughout.",
         jersey_prompt="deep purple NFL jersey — 'RAVENS' in white block letters across chest, white block numbers with thick black outline on chest and back, white shoulder stripes, purple sleeves with black and gold trim bands",
         pants_prompt="black NFL pants with purple and gold side stripes",
         helmet_prompt="glossy purple helmet, face fully visible through open visor — Ravens shield logo on both sides (black raven head on purple and gold shield with letter B), black face mask, thin gold center stripe",
         number_style="large white block numerals with thick black outline, collegiate style",
         logo_prompt="Ravens shield: black raven head facing left, purple and gold shield, bold letter B, gold trim border",
+        card_players=[
+            PlayerSpec(name="Lamar Jackson",  number="8",  position="qb", side="left"),
+            PlayerSpec(name="Derrick Henry",  number="22", position="rb", side="right"),
+        ],
     ),
     "KC": TeamData(
         name="Kansas City Chiefs", city="Kansas City", abbreviation="KC", sport=Sport.NFL,
@@ -77,12 +96,16 @@ NFL_TEAMS = {
         stadium_name="GEHA Field at Arrowhead Stadium",
         uptowns_stadium_prompt="Arrowhead Stadium illustrated front-facing — distinctive arrowhead-shaped roofline, red brick exterior, Chiefs arrowhead logos on the facade panels, trees and parking lot surrounding",
         uptowns_skyline_prompt="Kansas City skyline: the Liberty Memorial obelisk tower (tall, slender stone needle) dominates center as the tallest landmark, flanked by downtown office towers of varying heights — some tall glass buildings, some shorter brick — Missouri River glimpsed at the base",
-        uptowns_sky_prompt="Warm golden-red sunset sky, deep crimson at the horizon fading to amber above. The Liberty Memorial obelisk is the TALLEST die-cut point — its stone needle tip rises highest above everything else. Downtown towers step down from it left and right, each at a different height. Wispy golden sunset clouds drift above the towers, their soft organic tops adding curvy variation to the die-cut silhouette.",
+        uptowns_sky_prompt="Vivid amber and crimson Chiefs sunset sky — deep red-orange at the horizon fading to rich gold above. Dramatic volumetric clouds at dramatically varied heights: a towering golden cloud pillar rising very high on the left, the Liberty Memorial obelisk needle piercing sharply upward at center-left through a lower cloud bank, a wide mid-height cloud formation at center-right, and a smaller scattered group low on the right — each formation at a distinctly different height. Warm cinematic golden-hour light illuminates the cloud bases from below. Rich, saturated, premium Chiefs red and gold throughout.",
         jersey_prompt="red NFL jersey — 'CHIEFS' in white block letters across chest, white block numbers with red outline on chest and back, white shoulder panels, red sleeves with white and gold trim bands",
         pants_prompt="white NFL pants with red and gold side stripes",
         helmet_prompt="red helmet, face fully visible through open visor — Chiefs arrowhead logo on both sides (solid red arrowhead with white outline), white face mask, no center stripe",
         number_style="large white block numerals with red outline",
         logo_prompt="Chiefs arrowhead: solid red arrowhead pointing right, white outline, bold clean design",
+        card_players=[
+            PlayerSpec(name="Patrick Mahomes", number="15", position="qb", side="left"),
+            PlayerSpec(name="Travis Kelce",    number="87", position="te", side="right"),
+        ],
     ),
     "DAL": TeamData(
         name="Dallas Cowboys", city="Dallas", abbreviation="DAL", sport=Sport.NFL,
@@ -90,25 +113,86 @@ NFL_TEAMS = {
         stadium_name="AT&T Stadium",
         uptowns_stadium_prompt="AT&T Stadium illustrated front-facing — massive domed silver roof, Cowboys star centered on the facade, glass and steel exterior, Cowboys helmet logos on the building panels",
         uptowns_skyline_prompt="Dallas skyline: Reunion Tower with its distinctive spherical globe top is the most recognizable landmark (mid-height, iconic shape), flanked by tall glass skyscrapers including the Bank of America Plaza and Renaissance Tower at varying heights, deep indigo sky",
-        uptowns_sky_prompt="Bright Texas daytime sky, vivid navy-blue fading to lighter blue at the horizon. Large white fluffy cumulus clouds billow upward above the skyline — their soft rounded tops define the die-cut top edge in a naturally curvy, varied silhouette. Some cloud peaks tower high, others lower. Reunion Tower's globe is visible against the bright sky between the clouds. Die-cut follows every cloud curve — organic and flowing.",
-        jersey_prompt="navy blue NFL jersey — 'COWBOYS' in white block letters across chest, white block numbers with silver metallic outline on chest and back, white shoulder panels with silver trim, navy sleeves",
+        uptowns_sky_prompt="Vivid Texas noon sky — deep Cowboys navy-blue at the top fading to bright cerulean and warm gold at the horizon. Large dramatic white cumulus clouds at dramatically varied heights: a massive towering cloud column rising very high on the right with Reunion Tower's globe visible just beside it, a wide mid-height cloud bank at center, and lower scattered clouds on the left with Dallas skyline towers poking through at varying heights. Bright, vivid, cinematic Texas sunshine — warm golden light on every cloud surface. Bold contrast, premium collector card atmosphere.",
+        jersey_prompt="white home NFL jersey — 'COWBOYS' in navy blue block letters across chest, navy blue numbers with silver metallic outline on chest and back, blue shoulder stripe panels, white sleeves with navy trim",
         pants_prompt="silver metallic NFL pants with navy and white side stripes",
         helmet_prompt="high-gloss silver metallic helmet, face fully visible through open visor — iconic blue five-pointed star centered on both sides, blue face mask, no center stripe",
         number_style="large white block numerals with silver metallic outline",
         logo_prompt="Cowboys star: large blue five-pointed star, white outline, centered on silver helmet panel",
+        card_players=[
+            PlayerSpec(name="Dak Prescott", number="4",  position="qb", side="left",  pose="throwing",  ball="yes"),
+            PlayerSpec(name="CeeDee Lamb",  number="88", position="wr", side="right", pose="route",     ball="no"),
+        ],
+        roster={
+            "0":  RosterPlayer("DeMarvion Overshown",  "0",  "lb"),
+            "1":  RosterPlayer("P.J. Locke",           "1",  "db"),
+            "2":  RosterPlayer("Cobie Durant",         "2",  "cb"),
+            "4":  RosterPlayer("Dak Prescott",         "4",  "qb"),
+            "5":  RosterPlayer("Bryan Anger",          "5",  "p"),
+            "7":  RosterPlayer("Rashan Gary",          "7",  "lb"),
+            "9":  RosterPlayer("KaVontae Turpin",      "9",  "wr"),
+            "10": RosterPlayer("Joe Milton III",       "10", "qb"),
+            "13": RosterPlayer("Sam Howell",           "13", "qb"),
+            "14": RosterPlayer("Markquese Bell",       "14", "s"),
+            "15": RosterPlayer("Derion Kendrick",      "15", "cb"),
+            "19": RosterPlayer("Ryan Flournoy",        "19", "wr"),
+            "21": RosterPlayer("Caelen Carson",        "21", "cb"),
+            "23": RosterPlayer("Jaydon Blue",          "23", "rb"),
+            "25": RosterPlayer("Trikweze Bridges",     "25", "cb"),
+            "26": RosterPlayer("DaRon Bland",          "26", "cb"),
+            "28": RosterPlayer("Malik Hooker",         "28", "s"),
+            "33": RosterPlayer("Javonte Williams",     "33", "rb"),
+            "34": RosterPlayer("Shavon Revel Jr.",     "34", "cb"),
+            "35": RosterPlayer("Marist Liufau",        "35", "lb"),
+            "36": RosterPlayer("Corey Ballentine",     "36", "cb"),
+            "37": RosterPlayer("Phil Mafah",           "37", "rb"),
+            "38": RosterPlayer("Alijah Clark",         "38", "db"),
+            "40": RosterPlayer("Hunter Luepke",        "40", "rb"),
+            "41": RosterPlayer("Donovan Ezeiruaku",    "41", "de"),
+            "43": RosterPlayer("Malik Davis",          "43", "rb"),
+            "44": RosterPlayer("Trent Sieg",           "44", "ls"),
+            "45": RosterPlayer("Justin Barron",        "45", "lb"),
+            "50": RosterPlayer("Shemar James",         "50", "lb"),
+            "52": RosterPlayer("Tyler Booker",         "52", "og"),
+            "53": RosterPlayer("James Houston",        "53", "de"),
+            "56": RosterPlayer("Cooper Beebe",         "56", "c"),
+            "60": RosterPlayer("Tyler Guyton",         "60", "ot"),
+            "69": RosterPlayer("Ajani Cornelius",      "69", "ot"),
+            "71": RosterPlayer("Nate Thomas",          "71", "ot"),
+            "72": RosterPlayer("Matt Hennessy",        "72", "og"),
+            "73": RosterPlayer("Tyler Smith",          "73", "og"),
+            "76": RosterPlayer("Trevor Keegan",        "76", "og"),
+            "78": RosterPlayer("Terence Steele",       "78", "ot"),
+            "81": RosterPlayer("Jonathan Mingo",       "81", "wr"),
+            "85": RosterPlayer("Princeton Fant",       "85", "te"),
+            "86": RosterPlayer("Luke Schoonmaker",     "86", "te"),
+            "87": RosterPlayer("Jake Ferguson",        "87", "te"),
+            "88": RosterPlayer("CeeDee Lamb",          "88", "wr"),
+            "89": RosterPlayer("Brevyn Spann-Ford",    "89", "te"),
+            "90": RosterPlayer("Tyrus Wheat",          "90", "de"),
+            "91": RosterPlayer("Otito Ogbonnia",       "91", "dt"),
+            "92": RosterPlayer("Quinnen Williams",     "92", "dt"),
+            "93": RosterPlayer("Jay Toia",             "93", "dt"),
+            "95": RosterPlayer("Kenny Clark",          "95", "dt"),
+            "98": RosterPlayer("Jonathan Bullard",     "98", "de"),
+        },
     ),
     "GB": TeamData(
         name="Green Bay Packers", city="Green Bay", abbreviation="GB", sport=Sport.NFL,
         primary_hex="#203731", secondary_hex="#FFB612",
         stadium_name="Lambeau Field",
-        uptowns_stadium_prompt="Lambeau Field illustrated front-facing — classic circular bowl stadium, dark green and gold exterior, large Packers G logos on the facade panels, snow on the ground, pine trees surrounding the base",
+        uptowns_stadium_prompt="Lambeau Field illustrated front-facing — classic circular open-air bowl stadium, dark green and gold exterior, large Packers G logos on the facade panels, snow on the ground, pine trees surrounding the base. The stadium bowl is open at the front — you can see inside the seating bowl, the packed crowd in green and gold, and the field from this front angle.",
         uptowns_skyline_prompt="Green Bay winter scene: tall pointed pine trees of dramatically varying heights rise above the stadium — some very tall and narrow, others medium, others short — with snow-covered rooftops of low buildings visible between the trees",
-        uptowns_sky_prompt="Cold Wisconsin winter sky in deep forest green fading to warm gold. The tallest pine trees spike upward to define the die-cut top edge — their sharp irregular pointed tips create a naturally jagged organic silhouette, no two pine peaks at the same height. Light snow dusts the branches. Warm gold glow rises from stadium lights at the horizon. Die-cut traces every pine tip — spiky and organic, never smooth.",
+        uptowns_sky_prompt="Crisp Wisconsin winter sky — deep steel grey-blue at the top with warm amber stadium glow rising from below. Dramatic grey-white cloud formations at dramatically varied heights: a tall billowing cloud tower rising high on the left, a very tall snow-dusted pine tree spiking sharply at center-left piercing through a low cloud, a wide mid-height cloud bank at center with another tall pine visible through it, and more pine tips at varying heights on the right — each pine and cloud at a distinctly different height. Cold winter air, light snowfall visible. Packers gold warmth glowing from the stadium lights below the clouds.",
         jersey_prompt="dark forest green NFL jersey — 'PACKERS' in gold block letters across chest, gold block numbers with white outline on chest and back, gold shoulder panels, green sleeves with gold and white trim bands",
         pants_prompt="gold NFL pants with green and white side stripes",
         helmet_prompt="matte gold helmet, face fully visible through open visor — Packers G logo on both sides (dark green oval with large white letter G centered), white face mask, no center stripe",
         number_style="large gold block numerals with white outline",
         logo_prompt="Packers G: dark green oval, large white letter G centered, clean bold design",
+        card_players=[
+            PlayerSpec(name="Jordan Love",  number="10", position="qb", side="left"),
+            PlayerSpec(name="Jayden Reed",  number="11", position="wr", side="right"),
+        ],
     ),
     "CHI": TeamData(
         name="Chicago Bears", city="Chicago", abbreviation="CHI", sport=Sport.NFL,
@@ -116,25 +200,33 @@ NFL_TEAMS = {
         stadium_name="Soldier Field",
         uptowns_stadium_prompt="Soldier Field illustrated front-facing — iconic neoclassical stone columns flanking both sides of the modern bowl, Bears C logos on the facade panels, Lake Michigan visible behind",
         uptowns_skyline_prompt="Chicago skyline: Willis Tower (Sears Tower) dominates center-left — tallest building with two slim antenna towers at the top. John Hancock Center with distinctive X-bracing stands to the right at second height. Shorter skyscrapers at many varying heights fill the rest. Lake Michigan shoreline at the base.",
-        uptowns_sky_prompt="Deep navy blue Chicago night sky with burnt orange glow from city lights. Large dramatic clouds billow high on the left side, their uneven organic tops rising well above the buildings. Willis Tower's twin antenna tips are the TALLEST point at center. John Hancock Center rises to the right as the second peak. Left side high clouds, center Willis Tower peak, right side stepping down — a strongly asymmetric irregular silhouette across the full width.",
+        uptowns_sky_prompt="Dramatic Chicago dusk sky — deep navy blue at the top fading to vivid burnt orange and amber from the city glow near the horizon. Dramatic clouds at dramatically varied heights: Willis Tower's twin steel antenna tips pierce sharply upward through a low cloud bank at center — the antennas are the absolute highest point, far above everything else. John Hancock's X-braced silhouette clears a wider cloud bank at the right at a distinctly lower height. A tall billowing cloud formation rises high on the left. Navy blue sky visible between formations. Bears navy and orange throughout — cinematic Chicago dusk energy.",
         jersey_prompt="navy blue NFL jersey — 'BEARS' in orange block letters across chest, orange block numbers with white outline on chest and back, navy shoulder panels, navy sleeves with orange and white trim bands",
         pants_prompt="navy blue NFL pants with orange and white side stripes",
         helmet_prompt="navy blue helmet, face fully visible through open visor — Bears C logo on both sides (bold orange letter C with navy outline), navy face mask, no center stripe",
         number_style="large orange block numerals with white outline",
         logo_prompt="Bears C: bold orange letter C, navy outline, classic Chicago Bears design",
+        card_players=[
+            PlayerSpec(name="Caleb Williams", number="18", position="qb", side="left"),
+            PlayerSpec(name="DJ Moore",        number="2",  position="wr", side="right"),
+        ],
     ),
     "LV": TeamData(
         name="Las Vegas Raiders", city="Las Vegas", abbreviation="LV", sport=Sport.NFL,
         primary_hex="#000000", secondary_hex="#A5ACAF",
         stadium_name="Allegiant Stadium",
-        uptowns_stadium_prompt="Allegiant Stadium illustrated front-facing — iconic massive smooth black dome, known as the 'Death Star' of NFL stadiums, seamless dark curved roof covering the entire structure, Raiders shield logo on the facade, 'ALLEGIANT STADIUM' lettering, palm trees at the base",
+        uptowns_stadium_prompt="Allegiant Stadium illustrated front-facing — iconic massive smooth black dome, known as the 'Death Star' of NFL stadiums, seamless dark curved roof covering the entire structure, Raiders shield logo on the exterior facade panels, 'ALLEGIANT STADIUM' lettered in large silver text on the EXTERIOR facade wall below the roof — NOT on glass, NOT inside the stadium, exterior signage only, palm trees at the base",
         uptowns_skyline_prompt="Las Vegas Strip skyline: the Strat (Stratosphere) needle tower rises highest on the right (tallest, extremely slim with small pod near top), the massive spherical Sphere venue dominates the left, the Eiffel Tower replica at Paris Las Vegas stands center, surrounded by casino resort towers of dramatically varying heights",
-        uptowns_sky_prompt="Deep charcoal desert dusk sky fading to silver-grey. The Strat needle antenna tip is the single TALLEST die-cut point — slim, extreme, and unmistakable. The Sphere's massive curved dome creates a unique rounded silhouette on the left. The Eiffel Tower replica's pointed peak and the varying resort tower rooftops create a richly irregular skyline profile across the full width. Subtle warm amber neon glow from the Strip at the horizon. Die-cut traces this dramatic, diverse Vegas skyline exactly.",
+        uptowns_sky_prompt="Las Vegas night sky — deep black-purple above with vivid neon glow rising from the Strip: electric pink, magenta, cyan and gold light blazing up from below. Dramatic cloud formations at dramatically varied heights: a wide charcoal cloud bank very high on the left with the MSG Sphere's colorful LED surface glowing below it, the Eiffel Tower replica rising tall and golden at center through a gap in the clouds, the Stratosphere needle piercing sharply upward at the right — the single tallest element — with a lower cloud around it. Each landmark at a distinctly different height. Deep purple-black sky visible between formations, lit by neon from below. Vivid, electric, unmistakably Vegas — Raiders black and silver with neon Strip energy.",
         jersey_prompt="black NFL jersey — 'RAIDERS' in silver block letters across chest, silver block numbers with white outline on chest and back, black shoulder panels with silver trim, black sleeves with silver trim bands",
         pants_prompt="silver NFL pants with black side stripes",
         helmet_prompt="high-gloss silver metallic helmet, face fully visible through open visor — Raiders shield logo on both sides (black shield with silver crossed swords and pirate eye patch), black face mask, no center stripe",
         number_style="large silver block numerals with white outline",
         logo_prompt="Raiders shield: black shield, silver crossed swords, silver football, silver pirate eye patch, bold iconic design",
+        card_players=[
+            PlayerSpec(name="Maxx Crosby",  number="98", position="de",  side="left"),
+            PlayerSpec(name="Brock Bowers", number="89", position="te",  side="right"),
+        ],
     ),
 }
 
