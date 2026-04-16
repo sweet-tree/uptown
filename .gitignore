@@ -39,6 +39,9 @@ next-env.d.ts
 # ── Generated output ──────────────────────────────────────────────────────────
 output/
 
+# ── Legacy dashboard/ folder (moved to repo root) ────────────────────────────
+dashboard/
+
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 *.pem
