@@ -9,10 +9,9 @@ export function serverSessionOrNull(value: unknown): Session | null {
   if (!value || typeof value !== "object") {
     return null;
   }
-  if ("message" in value && !("user" in value)) {
-    return null;
-  }
-  if (!("expires" in value)) {
+  const o = value as Record<string, unknown>;
+  // Auth.js misconfiguration responses look like `{ message: "..." }` without a session shape.
+  if (typeof o.message === "string" && o.user === undefined && o.expires === undefined) {
     return null;
   }
   return value as Session;

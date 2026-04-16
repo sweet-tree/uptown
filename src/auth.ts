@@ -73,14 +73,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub;
-        if (typeof token.email === "string") {
-          session.user.email = token.email;
-        }
-        if (typeof token.name === "string") {
-          session.user.name = token.name;
-        }
+      // JWT: `session.user` is often empty on first paint; never gate on `if (session.user)`.
+      if (typeof token.sub === "string" && token.sub.length > 0) {
+        session.user = {
+          ...session.user,
+          id: token.sub,
+          email:
+            typeof token.email === "string"
+              ? token.email
+              : (session.user?.email ?? ""),
+          name:
+            typeof token.name === "string"
+              ? token.name
+              : (session.user?.name ?? null),
+        };
       }
       return session;
     },
