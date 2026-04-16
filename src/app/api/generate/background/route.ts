@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ai, MODELS, fileToInlineData, saveImage, extractImageBase64 } from "@/lib/gemini";
 import { getTeamByAbbr } from "@/app/actions/teams";
 import { buildBackgroundPrompt } from "@/lib/prompt-engine";
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { saveGeneration } from "@/app/actions/prompts";
 import type { GenerateBackgroundRequest } from "@/lib/types";
 
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     // Check for prompt override in DB
     const promptKey = `background:${teamAbbr.toUpperCase()}`;
-    const storedPrompt = await prisma.prompt.findUnique({ where: { key: promptKey } });
+    const storedPrompt = await getPrisma().prompt.findUnique({ where: { key: promptKey } });
     const prompt = storedPrompt?.text ?? buildBackgroundPrompt(team);
 
     const styleRef = fileToInlineData("assets/uptowns_sticker_ref.jpg");

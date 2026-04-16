@@ -1,9 +1,12 @@
 "use server";
 
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import type { TeamWithPlayers } from "@/lib/types";
 
+const rosterOrder = [{ name: "asc" as const }, { id: "asc" as const }];
+
 export async function getSports() {
+  const prisma = getPrisma();
   return prisma.sport.findMany({
     where: { active: true },
     orderBy: { name: "asc" },
@@ -11,11 +14,12 @@ export async function getSports() {
 }
 
 export async function getTeams(sportSlug: string): Promise<TeamWithPlayers[]> {
+  const prisma = getPrisma();
   return prisma.team.findMany({
     where: { sport: { slug: sportSlug.toLowerCase() }, active: true },
     include: {
       cardPlayers: { orderBy: { order: "asc" } },
-      rosterEntries: { orderBy: { sortOrder: "asc" } },
+      rosterEntries: { orderBy: rosterOrder },
       sport: true,
     },
     orderBy: { name: "asc" },
@@ -26,6 +30,7 @@ export async function getTeamByAbbr(
   abbreviation: string,
   sportSlug = "nfl",
 ): Promise<TeamWithPlayers> {
+  const prisma = getPrisma();
   const team = await prisma.team.findFirst({
     where: {
       abbreviation: abbreviation.toUpperCase(),
@@ -33,7 +38,7 @@ export async function getTeamByAbbr(
     },
     include: {
       cardPlayers: { orderBy: { order: "asc" } },
-      rosterEntries: { orderBy: { sortOrder: "asc" } },
+      rosterEntries: { orderBy: rosterOrder },
       sport: true,
     },
   });

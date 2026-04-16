@@ -10,20 +10,34 @@ function createPrismaClient() {
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-function rosterDelegateMissing(client: PrismaClient | undefined): boolean {
-  if (!client) return true;
-  const d = (client as unknown as { rosterEntry?: { findMany?: unknown } }).rosterEntry;
-  return typeof d?.findMany !== "function";
+/** Every delegate this app uses from PrismaClient — stale globals after `prisma generate` drop methods. */
+const DELEGATE_CHECKS = [
+  ["sport", "findMany"],
+  ["team", "findMany"],
+  ["rosterEntry", "findMany"],
+  ["cardPlayer", "findMany"],
+  ["prompt", "findUnique"],
+  ["generation", "findMany"],
+] as const;
+
+function delegatesHealthy(client: PrismaClient | undefined): boolean {
+  if (!client) return false;
+  const c = client as unknown as Record<string, Record<string, unknown> | undefined>;
+  for (const [model, method] of DELEGATE_CHECKS) {
+    const delegate = c[model];
+    if (typeof delegate?.[method] !== "function") return false;
+  }
+  return true;
 }
 
 /**
- * After `prisma generate`, Next dev can keep a stale PrismaClient on `globalThis`
- * that predates new models — delegates like `rosterEntry` are then undefined.
- * In development, drop that cache so the next import gets a fresh client.
+ * Returns a PrismaClient that matches the generated schema.
+ * In development, clears a cached `globalThis.prisma` when delegates are missing
+ * (common after `prisma generate` while Next dev keeps a hot-reloaded module graph).
  */
-function getPrisma(): PrismaClient {
+export function getPrisma(): PrismaClient {
   const g = globalForPrisma;
-  if (process.env.NODE_ENV !== "production" && g.prisma && rosterDelegateMissing(g.prisma)) {
+  if (process.env.NODE_ENV !== "production" && g.prisma && !delegatesHealthy(g.prisma)) {
     void g.prisma.$disconnect().catch(() => {});
     g.prisma = undefined;
   }
@@ -32,5 +46,3 @@ function getPrisma(): PrismaClient {
   }
   return g.prisma;
 }
-
-export const prisma = getPrisma();

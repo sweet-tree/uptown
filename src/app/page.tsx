@@ -7,6 +7,8 @@ import { getPrompt, setPrompt, deletePrompt, getGenerations } from "@/app/action
 import { getTeams } from "@/app/actions/teams";
 import type { TeamWithPlayers } from "@/lib/types";
 import { PromptInspector } from "@/components/prompt-inspector";
+import { TeamPicker } from "@/components/team-picker";
+import { RosterCombobox } from "@/components/roster-combobox";
 
 type Tab = "player" | "background";
 type Side = "left" | "right";
@@ -200,7 +202,7 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen overflow-hidden">
 
-      <aside style={{ background: "var(--sidebar)", borderRight: "1px solid var(--border)", width: 210, flexShrink: 0 }} className="flex flex-col">
+      <aside style={{ background: "var(--sidebar)", borderRight: "1px solid var(--border)", width: 236, flexShrink: 0 }} className="flex flex-col">
         <div style={{ padding: "18px 14px 10px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: "-0.03em" }}>UPTOWNS</div>
           <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2, letterSpacing: "0.08em", textTransform: "uppercase" }}>Card Generator</div>
@@ -211,37 +213,20 @@ export default function Dashboard() {
           <button style={{ background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", width: "100%" }}>NFL</button>
         </div>
 
-        <div style={{ padding: "8px 14px 4px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Teams</div>
-        </div>
-        <div style={{ overflowY: "auto", flex: 1 }}>
-          {teamsLoading && (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: "var(--muted)" }}>Loading teams…</div>
-          )}
-          {teamsError && (
-            <div style={{ padding: "12px 14px", fontSize: 11, color: "var(--danger)", lineHeight: 1.45 }}>
-              Could not load teams. Try <code style={{ fontSize: 10 }}>npx prisma generate</code>, delete the <code style={{ fontSize: 10 }}>.next</code> folder, restart <code style={{ fontSize: 10 }}>npm run dev</code>, then refresh.
-              {teamsQueryError instanceof Error ? ` (${teamsQueryError.message})` : ""}
-            </div>
-          )}
-          {!teamsLoading && !teamsError && teams.map((t) => {
-            const active = t.abbreviation === selectedAbbr;
-            return (
-              <button key={t.abbreviation} onClick={() => setSelectedAbbr(t.abbreviation)} style={{
-                display: "flex", alignItems: "center", gap: 9, width: "100%",
-                padding: "8px 14px", border: "none", cursor: "pointer", textAlign: "left",
-                background: active ? "rgba(108,99,255,0.15)" : "transparent",
-                borderLeft: active ? "3px solid var(--accent)" : "3px solid transparent",
-                color: active ? "var(--text)" : "var(--muted)",
-              }}>
-                <div style={{ width: 7, height: 7, borderRadius: "50%", background: t.primaryHex, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: active ? 700 : 400 }}>{t.abbreviation}</div>
-                  <div style={{ fontSize: 10, color: "var(--muted)" }}>{t.name}</div>
-                </div>
-              </button>
-            );
-          })}
+        <div className="min-h-0 flex-1 border-t border-[var(--border)] pt-2">
+          <TeamPicker
+            teams={teams}
+            selectedAbbr={selectedAbbr}
+            onSelect={setSelectedAbbr}
+            loading={teamsLoading}
+            error={
+              teamsError
+                ? teamsQueryError instanceof Error
+                  ? teamsQueryError
+                  : new Error(teamsQueryError != null ? String(teamsQueryError) : "Failed to load teams")
+                : null
+            }
+          />
         </div>
       </aside>
 
@@ -306,54 +291,16 @@ export default function Dashboard() {
                     )}
                   </InfoCard>
 
-                  {(team?.rosterEntries?.length ?? 0) > 0 && (
-                    <div>
-                      <Label>Roster</Label>
-                      <div style={{
-                        marginTop: 5,
-                        maxHeight: 220,
-                        overflowY: "auto",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 1,
-                        border: "1px solid var(--border)",
-                        borderRadius: 6,
-                        padding: 4,
-                        background: "var(--panel)",
-                      }}>
-                        {team?.rosterEntries.map((r) => {
-                          const cardMatch = team?.cardPlayers?.find((c) => c.number === r.number);
-                          return (
-                            <button
-                              key={r.id}
-                              type="button"
-                              onClick={() => {
-                                setPlayerOverride(r.name);
-                                setNumberOverride(r.number);
-                                if (cardMatch) setSide(cardMatch.side as Side);
-                              }}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                padding: "4px 6px",
-                                border: "none",
-                                background: "transparent",
-                                cursor: "pointer",
-                                borderRadius: 4,
-                                color: "var(--muted)",
-                                fontSize: 11,
-                                textAlign: "left",
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(108,99,255,0.12)"; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                            >
-                              <span>#{r.number} {r.name}</span>
-                              <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: 10 }}>{r.position.toUpperCase()}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  {(team?.rosterEntries?.length ?? 0) > 0 && team && (
+                    <RosterCombobox
+                      entries={team.rosterEntries}
+                      cardPlayers={team.cardPlayers}
+                      onPick={(r, slotSide) => {
+                        setPlayerOverride(r.name);
+                        setNumberOverride(r.number);
+                        setSide(slotSide);
+                      }}
+                    />
                   )}
 
                   <div>

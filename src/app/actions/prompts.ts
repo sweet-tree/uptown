@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/db";
+import { getPrisma } from "@/lib/db";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { getTeamByAbbr } from "./teams";
 
@@ -24,6 +24,7 @@ export interface GenerationInput {
 // ── Prompt CRUD ────────────────────────────────────────────────────────────────
 
 export async function getPrompt(key: string): Promise<PromptResult> {
+  const prisma = getPrisma();
   const stored = await prisma.prompt.findUnique({ where: { key } });
   if (stored) return { text: stored.text, isCustom: true };
 
@@ -52,6 +53,7 @@ export async function getPrompt(key: string): Promise<PromptResult> {
 }
 
 export async function setPrompt(key: string, text: string): Promise<void> {
+  const prisma = getPrisma();
   await prisma.prompt.upsert({
     where: { key },
     update: { text },
@@ -60,16 +62,19 @@ export async function setPrompt(key: string, text: string): Promise<void> {
 }
 
 export async function deletePrompt(key: string): Promise<void> {
+  const prisma = getPrisma();
   await prisma.prompt.deleteMany({ where: { key } });
 }
 
 // ── Generation history ─────────────────────────────────────────────────────────
 
 export async function saveGeneration(data: GenerationInput): Promise<void> {
+  const prisma = getPrisma();
   await prisma.generation.create({ data });
 }
 
 export async function getGenerations(team: string) {
+  const prisma = getPrisma();
   return prisma.generation.findMany({
     where: { team: team.toUpperCase() },
     orderBy: { createdAt: "desc" },
@@ -78,9 +83,9 @@ export async function getGenerations(team: string) {
 }
 
 export async function getAllGenerations() {
+  const prisma = getPrisma();
   return prisma.generation.findMany({
     orderBy: { createdAt: "desc" },
     take: 100,
   });
 }
-
