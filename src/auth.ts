@@ -3,20 +3,9 @@
  */
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { normalizeAuthUrlEnvVars } from "@/lib/auth-url-env";
 
-/** Trim whitespace; strip trailing slashes (Auth.js expects a canonical origin). */
-function normalizeAuthUrlEnv() {
-  for (const key of ["AUTH_URL", "NEXTAUTH_URL"] as const) {
-    const raw = process.env[key];
-    if (!raw) continue;
-    const cleaned = raw.trim().replace(/\/+$/, "");
-    if (cleaned) {
-      process.env[key] = cleaned;
-    }
-  }
-}
-
-normalizeAuthUrlEnv();
+normalizeAuthUrlEnvVars();
 
 class InvalidCredentials extends CredentialsSignin {
   code = "invalid_credentials";
