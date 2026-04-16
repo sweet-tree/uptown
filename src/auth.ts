@@ -1,6 +1,5 @@
 /**
- * Do not statically import `@/lib/db` here: `auth` is loaded by `proxy.ts`, which may run on the
- * Edge runtime on Vercel. Prisma/Neon must only load on the Node path (credentials `authorize`).
+ * Do not statically import `@/lib/db` here: keep Prisma on the Node path (credentials `authorize` only).
  */
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -65,29 +64,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    authorized({ auth, request }) {
-      const path = request.nextUrl.pathname;
-      if (path.startsWith("/login")) {
-        return true;
-      }
-      if (path.startsWith("/api/auth")) {
-        return true;
-      }
-      if (path.startsWith("/api/health")) {
-        return true;
-      }
-
-      // App Router flight / prefetch requests must not get an HTML redirect from the proxy.
-      // In production that often surfaces as an endless reload while the router retries RSC.
-      const isFlightOrPrefetch =
-        request.headers.get("RSC") === "1" ||
-        request.headers.get("Next-Router-Prefetch") === "1";
-      if (!auth?.user && isFlightOrPrefetch && !path.startsWith("/api/")) {
-        return true;
-      }
-
-      return !!auth?.user;
-    },
     jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
