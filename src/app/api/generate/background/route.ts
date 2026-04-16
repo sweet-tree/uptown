@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { ai, MODELS, fileToInlineData, saveImage, extractImageBase64 } from "@/lib/gemini";
 import { getTeamByAbbr } from "@/app/actions/teams";
 import { buildBackgroundPrompt } from "@/lib/prompt-engine";
@@ -10,6 +11,11 @@ export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body: GenerateBackgroundRequest = await req.json();
     const { team: teamAbbr, model = "flash" } = body;
 

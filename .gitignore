@@ -45,3 +45,8 @@ dashboard/
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 *.pem
+
+# ── Local agent / review artifacts (not part of the app) ─────────────────────
+.playwright-mcp/
+dashboard-ui-*.png
+team-dropdown-*.png

@@ -7,6 +7,20 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Auth (Auth.js credentials + JWT sessions) ─────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  /// Argon2-encoded digest (argon2id); never store plaintext passwords.
+  passwordHash  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 // ── Sports catalog ─────────────────────────────────────────────────────────────
 
 model Sport {

@@ -18,6 +18,7 @@ const DELEGATE_CHECKS = [
   ["cardPlayer", "findMany"],
   ["prompt", "findUnique"],
   ["generation", "findMany"],
+  ["user", "findUnique"],
 ] as const;
 
 function delegatesHealthy(client: PrismaClient | undefined): boolean {
