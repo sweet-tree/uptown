@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     if (player) {
       const fromCard = team.cardPlayers.find(
-        (p) => p.name.toLowerCase() === player.toLowerCase()
+        (p) => p.name.toLowerCase() === player.toLowerCase(),
       );
       if (fromCard) {
         resolvedName     = fromCard.name;
@@ -32,16 +32,37 @@ export async function POST(req: NextRequest) {
         if (!pose) resolvedPose = fromCard.pose;
         if (!ball) resolvedBall = fromCard.ball;
       } else {
-        return NextResponse.json({ ok: false, error: `Player "${player}" not found for ${teamAbbr}` }, { status: 400 });
+        const fromRoster = team.rosterEntries.find(
+          (p) => p.name.toLowerCase() === player.toLowerCase(),
+        );
+        if (!fromRoster) {
+          return NextResponse.json(
+            { ok: false, error: `Player "${player}" not found for ${teamAbbr}` },
+            { status: 400 },
+          );
+        }
+        resolvedName     = fromRoster.name;
+        resolvedNumber   = fromRoster.number;
+        resolvedPosition = fromRoster.position;
       }
     } else if (number) {
       const fromCard = team.cardPlayers.find((p) => p.number === number);
-      if (!fromCard) {
-        return NextResponse.json({ ok: false, error: `#${number} not found for ${teamAbbr}` }, { status: 400 });
+      if (fromCard) {
+        resolvedName     = fromCard.name;
+        resolvedNumber   = fromCard.number;
+        resolvedPosition = fromCard.position;
+      } else {
+        const fromRoster = team.rosterEntries.find((p) => p.number === number);
+        if (!fromRoster) {
+          return NextResponse.json(
+            { ok: false, error: `#${number} not found for ${teamAbbr}` },
+            { status: 400 },
+          );
+        }
+        resolvedName     = fromRoster.name;
+        resolvedNumber   = fromRoster.number;
+        resolvedPosition = fromRoster.position;
       }
-      resolvedName     = fromCard.name;
-      resolvedNumber   = fromCard.number;
-      resolvedPosition = fromCard.position;
     } else {
       const spec = team.cardPlayers.find((p) => p.side === side);
       if (!spec) {

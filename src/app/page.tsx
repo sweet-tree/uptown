@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { getPrompt, setPrompt, deletePrompt, getGenerations } from "@/app/actions/prompts";
 import { getTeams } from "@/app/actions/teams";
-import type { TeamWithPlayers } from "@/app/actions/teams";
+import type { TeamWithPlayers } from "@/lib/types";
 
 type Tab = "player" | "background" | "prompt";
 type Side = "left" | "right";
@@ -273,10 +273,10 @@ export default function Dashboard() {
                     )}
                   </InfoCard>
 
-                  {/* Card Players list */}
+                  {/* Card slots (left/right defaults) */}
                   {(team?.cardPlayers.length ?? 0) > 0 && (
                     <div>
-                      <Label>Card Players</Label>
+                      <Label>Card slots</Label>
                       <div style={{ marginTop: 5, display: "flex", flexDirection: "column", gap: 1 }}>
                         {team?.cardPlayers.map((p) => (
                           <button key={p.id} onClick={() => { setPlayerOverride(p.name); setNumberOverride(p.number); setSide(p.side as Side); }}
@@ -287,6 +287,56 @@ export default function Dashboard() {
                             <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: 10 }}>{p.position.toUpperCase()} · {p.side}</span>
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Full roster (DAL and any team with seeded roster) */}
+                  {(team?.rosterEntries.length ?? 0) > 0 && (
+                    <div>
+                      <Label>Roster</Label>
+                      <div style={{
+                        marginTop: 5,
+                        maxHeight: 220,
+                        overflowY: "auto",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1,
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                        padding: 4,
+                        background: "var(--panel)",
+                      }}>
+                        {team?.rosterEntries.map((r) => {
+                          const cardMatch = team.cardPlayers.find((c) => c.number === r.number);
+                          return (
+                            <button
+                              key={r.id}
+                              onClick={() => {
+                                setPlayerOverride(r.name);
+                                setNumberOverride(r.number);
+                                if (cardMatch) setSide(cardMatch.side as Side);
+                              }}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                padding: "4px 6px",
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                borderRadius: 4,
+                                color: "var(--muted)",
+                                fontSize: 11,
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(108,99,255,0.12)"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                            >
+                              <span>#{r.number} {r.name}</span>
+                              <span style={{ color: "var(--accent)", fontWeight: 600, fontSize: 10 }}>{r.position.toUpperCase()}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { buildPlayerPrompt, buildBackgroundPrompt } from "@/lib/prompt-engine";
 import { getTeamByAbbr } from "./teams";
-import type { TeamWithPlayers } from "./teams";
+
 
 export interface PromptResult {
   text: string;
@@ -84,5 +84,3 @@ export async function getAllGenerations() {
   });
 }
 
-// Re-export for convenience
-export type { TeamWithPlayers };

@@ -1,4 +1,5 @@
 import type { TeamSeed } from "../../types";
+import { DAL_ROSTER_ROWS } from "../rosters/dal-roster";
 
 export const DAL: TeamSeed = {
   abbreviation: "DAL",
@@ -19,4 +20,5 @@ export const DAL: TeamSeed = {
     { name: "Dak Prescott", number: "4",  position: "qb", side: "left",  pose: "throwing", ball: "yes", order: 0 },
     { name: "CeeDee Lamb",  number: "88", position: "wr", side: "right", pose: "route",    ball: "no",  order: 1 },
   ],
+  roster: DAL_ROSTER_ROWS,
 };

@@ -49,6 +49,19 @@ export async function seedNFL(prisma: PrismaClient) {
       })),
     });
 
+    await prisma.rosterEntry.deleteMany({ where: { teamId: team.id } });
+    if (t.roster?.length) {
+      await prisma.rosterEntry.createMany({
+        data: t.roster.map((r, idx) => ({
+          teamId: team.id,
+          name: r.name,
+          number: r.number,
+          position: r.position,
+          sortOrder: Number.parseInt(r.number, 10) * 100 + idx,
+        })),
+      });
+    }
+
     console.log(`  ✓ ${t.abbreviation} — ${t.name}`);
   }
 

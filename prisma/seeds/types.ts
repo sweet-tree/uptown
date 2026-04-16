@@ -1,3 +1,9 @@
+export interface RosterEntrySeed {
+  name: string;
+  number: string;
+  position: string;
+}
+
 export interface TeamSeed {
   abbreviation: string;
   name: string;
@@ -14,6 +20,8 @@ export interface TeamSeed {
   numberStyle: string;
   logoPrompt: string;
   cardPlayers: CardPlayerSeed[];
+  /** Optional full roster (e.g. DAL); used for sidebar list + API name/# resolution */
+  roster?: RosterEntrySeed[];
 }
 
 export interface CardPlayerSeed {

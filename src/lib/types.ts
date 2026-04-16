@@ -59,3 +59,12 @@ export interface GenerateResponse {
   dataUrl?: string;
   error?: string;
 }
+
+// ── DB model shapes ──────────────────────────────────────────────────────────
+import type { Team, CardPlayer, Sport as SportModel, RosterEntry } from "../generated/prisma/client";
+
+export type TeamWithPlayers = Team & {
+  cardPlayers: CardPlayer[];
+  rosterEntries: RosterEntry[];
+  sport: SportModel;
+};
