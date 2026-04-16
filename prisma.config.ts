@@ -11,6 +11,5 @@ export default defineConfig({
   },
   datasource: {
     url: process.env.POSTGRES_PRISMA_URL!,
-    directUrl: process.env.DATABASE_URL_UNPOOLED,
   },
 });
