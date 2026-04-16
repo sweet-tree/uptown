@@ -3,9 +3,11 @@ export { auth as proxy } from "@/auth";
 export const config = {
   matcher: [
     /*
-     * Match all request paths except static assets and images.
-     * (API auth is allowed inside `authorized`; other `/api/*` require a session.)
+     * Exclude:
+     * - NextAuth routes (handled by route.ts; avoids subtle proxy+session interactions in prod)
+     * - Static / image assets
+     * Other `/api/*` still hit the proxy so `authorized` can enforce sessions.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

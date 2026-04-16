@@ -1,7 +1,20 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { verify } from "argon2";
 import { getPrisma } from "@/lib/db";
+
+/** Trim whitespace; strip trailing slashes (Auth.js expects a canonical origin). */
+function normalizeAuthUrlEnv() {
+  for (const key of ["AUTH_URL", "NEXTAUTH_URL"] as const) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const cleaned = raw.trim().replace(/\/+$/, "");
+    if (cleaned) {
+      process.env[key] = cleaned;
+    }
+  }
+}
+
+normalizeAuthUrlEnv();
 
 class InvalidCredentials extends CredentialsSignin {
   code = "invalid_credentials";
@@ -32,6 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new InvalidCredentials();
         }
 
+        const { verify } = await import("argon2");
         const ok = await verify(user.passwordHash, password).catch(() => false);
         if (!ok) {
           throw new InvalidCredentials();
@@ -54,6 +68,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (path.startsWith("/api/auth")) {
         return true;
       }
+
+      // App Router flight / prefetch requests must not get an HTML redirect from the proxy.
+      // In production that often surfaces as an endless reload while the router retries RSC.
+      const isFlightOrPrefetch =
+        request.headers.get("RSC") === "1" ||
+        request.headers.get("Next-Router-Prefetch") === "1";
+      if (!auth?.user && isFlightOrPrefetch && !path.startsWith("/api/")) {
+        return true;
+      }
+
       return !!auth?.user;
     },
     jwt({ token, user }) {
