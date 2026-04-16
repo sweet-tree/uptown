@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getGenAI, MODELS, fileToInlineData, saveImage, extractImageBase64 } from "@/lib/gemini";
+import {
+  getGenAI,
+  MODELS,
+  fileToInlineData,
+  saveImage,
+  extractImageBase64,
+  imageGenerateConfig,
+} from "@/lib/gemini";
 import { getTeamByAbbr } from "@/app/actions/teams";
 import { buildPlayerPrompt } from "@/lib/prompt-engine";
 import { getPrisma } from "@/lib/db";
@@ -94,6 +101,11 @@ export async function POST(req: NextRequest) {
     const response = await getGenAI().models.generateContent({
       model: MODELS[model],
       contents: [{ role: "user", parts: [{ text: prompt }, refPart] }],
+      config: imageGenerateConfig(model, {
+        aspectRatio: "3:4",
+        flashImageSize: "2K",
+        proImageSize: "4K",
+      }),
     });
 
     const base64 = extractImageBase64(response);

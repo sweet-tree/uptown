@@ -1,3 +1,4 @@
+import type { GenerateContentConfig } from "@google/genai";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import os from "os";
@@ -17,12 +18,28 @@ export function getGenAI(): GoogleGenAI {
   return genaiClient;
 }
 
+/** Match `make_player.py` / `make_background.py` model IDs (not the generic Flash image alias). */
 export const MODELS = {
-  flash: "gemini-2.5-flash-image",
+  flash: "gemini-3.1-flash-image-preview",
   pro: "gemini-3-pro-image-preview",
 } as const;
 
 export type ModelTier = keyof typeof MODELS;
+
+/** Parity with Python `GenerateContentConfig`: modalities + aspect ratio + resolution tier. */
+export function imageGenerateConfig(
+  model: ModelTier,
+  spec: { aspectRatio: string; flashImageSize: string; proImageSize: string },
+): GenerateContentConfig {
+  const imageSize = model === "pro" ? spec.proImageSize : spec.flashImageSize;
+  return {
+    responseModalities: ["TEXT", "IMAGE"],
+    imageConfig: {
+      aspectRatio: spec.aspectRatio,
+      imageSize,
+    },
+  };
+}
 
 /** Resolve a path relative to the repo root (same as Next.js cwd) */
 export function workspacePath(...segments: string[]): string {

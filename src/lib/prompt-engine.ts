@@ -24,22 +24,25 @@ function playerFacing(side: "left" | "right"): string {
     : "body and gaze directed to the LEFT — the player moves and looks toward viewer's left";
 }
 
+/** Resolve `pose === "auto"` from position; same mapping as Python `_player_pose`. */
+function resolvePlayerPoseKey(position: string, pose: string): string {
+  if (pose !== "auto") return pose;
+  const pos = position.toLowerCase();
+  if (pos === "qb") return "throwing";
+  if (pos === "rb") return "rushing";
+  if (pos === "wr") return "route";
+  if (pos === "te") return "rushing";
+  if (["de", "dl", "edge", "olb"].includes(pos)) return "speed_rush";
+  if (pos === "dt") return "bull_rush";
+  if (pos === "lb") return "linebacker";
+  if (["cb", "db", "s", "fs", "ss"].includes(pos)) return "coverage";
+  if (pos === "k") return "kicking";
+  return "athletic";
+}
+
 function playerPose(position: string, side: "left" | "right", pose: string): string {
   const direction = side === "left" ? "right" : "left";
-  const pos = position.toLowerCase();
-
-  if (pose === "auto") {
-    if (pos === "qb")                              pose = "throwing";
-    else if (pos === "rb")                         pose = "rushing";
-    else if (pos === "wr")                         pose = "route";
-    else if (pos === "te")                         pose = "rushing";
-    else if (["de", "dl", "edge", "olb"].includes(pos)) pose = "speed_rush";
-    else if (pos === "dt")                         pose = "bull_rush";
-    else if (pos === "lb")                         pose = "linebacker";
-    else if (["cb", "db", "s", "fs", "ss"].includes(pos)) pose = "coverage";
-    else if (pos === "k")                          pose = "kicking";
-    else                                           pose = "athletic";
-  }
+  const key = resolvePlayerPoseKey(position, pose);
 
   const descriptions: Record<string, string> = {
     throwing:      `classic QB mid-throw release toward the ${direction} — plant foot firmly grounded, hips fully rotated, throwing arm fully extended releasing a tight spiral, non-throwing hand following through naturally, full weight transfer, intense focused eyes downfield`,
@@ -61,7 +64,7 @@ function playerPose(position: string, side: "left" | "right", pose: string): str
     athletic:      `explosive athletic action stance toward the ${direction} — dynamic power, full energy, premium sports card presence`,
   };
 
-  return descriptions[pose] ?? descriptions.athletic;
+  return descriptions[key] ?? descriptions.athletic;
 }
 
 function playerBall(position: string, pose: string, ball: string): string {
@@ -102,7 +105,7 @@ export function buildPlayerPrompt(
 ): string {
   const facing   = playerFacing(side);
   const poseStr  = playerPose(position, side, pose);
-  const ballStr  = playerBall(position, pose !== "auto" ? pose : position, ball);
+  const ballStr  = playerBall(position, resolvePlayerPoseKey(position, pose), ball);
   const visorStr = playerVisor(visor);
 
   return `Generate a single isolated NFL player illustration for a premium collectible sports card.
@@ -172,6 +175,8 @@ CANVAS LAYOUT — TOP TO BOTTOM
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Background: pure chroma green (#00FF00) everywhere outside the drawn elements.
 
+The canvas is divided into TWO zones from top to bottom:
+
 The canvas is a SANDWICH — three horizontal layers, like a sandwich with two red slices of bread and the island filling in the middle:
 
 TOP BREAD — solid red (#FF0000), top 28% of canvas height, full width edge to edge. Nothing enters this zone.
@@ -228,16 +233,19 @@ SKYLINE:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PREMIUM DETAILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-INTERIOR: Stadium seats packed with supporters in team colors, large jumbotron showing team logo, sponsor banners on interior walls, field with end zone logo visible, floodlights glowing.
+INTERIOR: Stadium seats packed with supporters (people) in team colors, large jumbotron showing team logo, sponsor banners on interior walls, field with end zone logo visible, floodlights glowing. The interior bowl is visible looking through the open stadium entrance from this ground-level front angle.
 FACADE: Sponsor banners and advertisement panels alongside team logos, window glass reflections, structural beams and surface textures
-PLATFORM: 3–5 human supporters (people wearing team jerseys, holding team flags) near the entrance — small celebratory figures. Flag poles with team flags flying. Trees, shrubs, and light poles at the base. NO mechanical objects, NO ventilators, NO fans.
+PLATFORM: 3–5 human supporters (people wearing team jerseys, holding team flags) near the entrance — small celebratory figures, clearly human. Flag poles with team flags flying. Trees, shrubs, and light poles at the base. NO mechanical objects, NO ventilators, NO electric fans, NO equipment of any kind on the platform.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CLOUDS & TOP SILHOUETTE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Soft white and light grey volumetric clouds sit just above the stadium roofline — exactly as in the reference
-• The clouds define the organic top silhouette of the floating island
-• Above and around the clouds is pure chroma green (#00FF00) — NO sky color, NO blue, NO gradient
-• Clouds are COMPACT and LOW — a thin band creating the organic irregular top edge
-• Clouds at varied heights across the width — never a smooth arch or dome`;
+LOOK AT THE REFERENCE IMAGE — copy the cloud style and placement exactly:
+• Soft white and light grey volumetric clouds sit just above the stadium roofline and skyline tips — exactly as in the reference
+• The clouds define the organic top silhouette of the floating island — they are the top edge of the island shape
+• Above and around the clouds is pure chroma green (#00FF00) — NO sky color, NO blue, NO gradient. The background outside the island is always pure green.
+• The clouds are COMPACT and LOW — they sit just slightly above the skyline, not towering. A thin band of clouds creates the organic irregular top edge. Clouds must NOT grow tall.
+• The highest cloud peak must stay well within Zone 3 — clouds must NEVER enter Zone 2 (the gap) or Zone 1 (the marquee). Hard stop at the Zone 3 top boundary.
+• Clouds at varied heights across the width — never a smooth arch or dome.
+• NO sky visible inside the composition — only clouds, stadium, skyline, and platform.`;
 }
