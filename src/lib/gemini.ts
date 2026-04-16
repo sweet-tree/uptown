@@ -1,5 +1,6 @@
 import type { GenerateContentConfig } from "@google/genai";
 import { GoogleGenAI } from "@google/genai";
+import type { ModelTier } from "@/lib/types";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -24,7 +25,11 @@ export const MODELS = {
   pro: "gemini-3-pro-image-preview",
 } as const;
 
-export type ModelTier = keyof typeof MODELS;
+/** Pro is off in product UI; keep server aligned so crafted requests still use Flash. */
+export function effectiveImageModelTier(requested: ModelTier | undefined): ModelTier {
+  const m = requested ?? "flash";
+  return m === "pro" ? "flash" : m;
+}
 
 /** Parity with Python `GenerateContentConfig`: modalities + aspect ratio + resolution tier. */
 export function imageGenerateConfig(

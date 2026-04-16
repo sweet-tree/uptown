@@ -570,11 +570,21 @@ function Input({
 function ModelToggle({ value, onChange }: { value: ModelTier; onChange: (v: ModelTier) => void }) {
   return (
     <div className="ds-model-toggle">
-      {(["flash", "pro"] as ModelTier[]).map((m) => (
-        <button key={m} type="button" data-on={value === m ? "true" : "false"} onClick={() => onChange(m)}>
-          {MODEL_TIER_DISPLAY[m]}
-        </button>
-      ))}
+      {(["flash", "pro"] as ModelTier[]).map((m) => {
+        const proLocked = m === "pro";
+        return (
+          <button
+            key={m}
+            type="button"
+            data-on={value === m ? "true" : "false"}
+            disabled={proLocked}
+            title={proLocked ? "Pro tier is disabled for now" : undefined}
+            onClick={() => onChange(m)}
+          >
+            {MODEL_TIER_DISPLAY[m]}
+          </button>
+        );
+      })}
     </div>
   );
 }

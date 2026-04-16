@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import {
   getGenAI,
   MODELS,
+  effectiveImageModelTier,
   fileToInlineData,
   saveImage,
   extractImageBase64,
@@ -24,7 +25,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body: GenerateBackgroundRequest = await req.json();
-    const { team: teamAbbr, model = "flash" } = body;
+    const { team: teamAbbr, model: requestedModel = "flash" } = body;
+    const model = effectiveImageModelTier(requestedModel);
 
     const team = await getTeamByAbbr(teamAbbr);
 

@@ -384,6 +384,15 @@ button.ds-tab[data-active="true"] {
   background: var(--accent);
   color: #fff;
 }
+.ds-model-toggle button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+  color: var(--muted);
+}
+.ds-model-toggle button:disabled[data-on="true"] {
+  background: transparent;
+  color: var(--muted);
+}
 
 /* Shell + form rhythm (use with flex column pages) */
 .ds-lane-gutter {
